@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - NAC Central Authentication Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-black text-zinc-100 min-h-screen flex items-center justify-center p-4 selection:bg-white selection:text-black">
+
+    <div class="max-w-md w-full bg-[#111114] rounded-2xl shadow-2xl overflow-hidden border border-zinc-800">
+        <!-- Header: Deep Black with Crisp White Emblem -->
+        <div class="bg-black p-8 text-white text-center border-b border-zinc-800">
+            <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-black shadow-xl ring-2 ring-zinc-700">
+                <i class="fa-solid fa-shield-halved text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-black tracking-wider text-white">NAC CONTROL CENTER</h2>
+            <p class="text-xs text-zinc-400 mt-1 uppercase tracking-widest font-mono">Hệ thống Quản lý Truy cập Mạng Tập trung</p>
+        </div>
+
+        <!-- Form Container -->
+        <div class="p-8 bg-[#111114]">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold text-center shadow-lg
+                            {% if category == 'danger' %}bg-red-950/80 text-red-200 border border-red-700
+                            {% elif category == 'warning' %}bg-orange-950/80 text-orange-200 border border-orange-700
+                            {% elif category == 'info' %}bg-amber-950/80 text-amber-200 border border-amber-700
+                            {% else %}bg-zinc-900 text-white border border-zinc-700{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
+                <input type="hidden" name="sid" value="{{ sid }}">
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-2">Tên đăng nhập (Username)</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
+                            <i class="fa-solid fa-user text-sm"></i>
+                        </span>
+                        <input type="text" name="username" required placeholder="admin hoặc auditor"
+                            class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black border border-zinc-700 focus:outline-none focus:border-white focus:ring-1 focus:ring-white text-sm text-white placeholder-zinc-500 transition-all">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-2">Mật khẩu (Password)</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
+                            <i class="fa-solid fa-lock text-sm"></i>
+                        </span>
+                        <input type="password" name="password" required placeholder="••••••••••••"
+                            class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black border border-zinc-700 focus:outline-none focus:border-white focus:ring-1 focus:ring-white text-sm text-white placeholder-zinc-500 transition-all">
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full py-3.5 px-4 bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-wider text-xs rounded-xl shadow-xl hover:shadow-2xl transition-all duration-200 flex items-center justify-center space-x-2">
+                    <span>Đăng nhập Bảng Điều Khiển</span>
+                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                </button>
+            </form>
+
+            <!-- Demo Hint box - Chú ý mức độ Cam / Vàng cho các vai trò -->
+            <div class="mt-8 pt-6 border-t border-zinc-800 text-xs text-zinc-400 space-y-2.5">
+                <p class="font-bold text-zinc-300 uppercase tracking-widest text-[11px] flex items-center space-x-1.5">
+                    <i class="fa-solid fa-circle-info text-zinc-400"></i>
+                    <span>Tài khoản xác thực hệ thống:</span>
+                </p>
+                <div class="grid grid-cols-2 gap-2.5 text-[11px]">
+                    <!-- Admin: Cảnh báo mức Cam (Đặc quyền cao nhất) -->
+                    <div class="p-3 bg-zinc-950 rounded-xl border border-orange-500/40">
+                        <p class="font-extrabold text-orange-400 uppercase tracking-wide flex items-center space-x-1">
+                            <i class="fa-solid fa-crown text-[10px]"></i>
+                            <span>Admin (Toàn quyền)</span>
+                        </p>
+                        <p class="mt-1 text-zinc-300">User: <code class="text-white font-mono font-bold bg-zinc-900 px-1 py-0.5 rounded border border-zinc-700">admin</code></p>
+                        <p class="mt-0.5 text-zinc-400">Pass: <code class="text-zinc-300 font-mono">AdminPassword123!</code></p>
+                    </div>
+                    <!-- Auditor: Cảnh báo mức Vàng (Chỉ đọc) -->
+                    <div class="p-3 bg-zinc-950 rounded-xl border border-amber-500/40">
+                        <p class="font-extrabold text-amber-300 uppercase tracking-wide flex items-center space-x-1">
+                            <i class="fa-solid fa-eye text-[10px]"></i>
+                            <span>Auditor (Chỉ đọc)</span>
+                        </p>
+                        <p class="mt-1 text-zinc-300">User: <code class="text-white font-mono font-bold bg-zinc-900 px-1 py-0.5 rounded border border-zinc-700">auditor</code></p>
+                        <p class="mt-0.5 text-zinc-400">Pass: <code class="text-zinc-300 font-mono">AuditorPass123!</code></p>
+                    </div>
+                </div>
+
+                <!-- Multi-Tab Status -->
+                <div class="mt-3 p-2.5 bg-black rounded-xl border border-zinc-800 text-[11px] text-zinc-400 flex items-center justify-between">
+                    <span class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-layer-group text-white text-[10px]"></i>
+                        <span>Mã phiên Tab độc lập:</span>
+                    </span>
+                    <span class="font-mono font-bold text-white bg-zinc-900 px-2 py-0.5 rounded border border-zinc-700">#{{ sid }}</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 italic text-center mt-1">Hỗ trợ đa tab: Mở các tab khác nhau hoặc nhân bản tab để đăng nhập các user khác nhau đồng thời.</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

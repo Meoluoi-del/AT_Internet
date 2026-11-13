@@ -1,0 +1,152 @@
+# ====================================================================
+# KHỞI TẠO DỮ LIỆU CÂY THƯ MỤC LDAP (DIT BOOTSTRAP)
+# Đề tài: Quản lý truy cập mạng và xác thực trung tâm (NAC)
+# Domain: dc=attt,dc=ptit,dc=edu,dc=vn
+# ====================================================================
+
+# 1. Định nghĩa các Đơn vị Tổ chức (Organizational Units - OU)
+# --------------------------------------------------------------------
+dn: ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+description: Chua toan bo tai khoan nguoi dung mang
+
+dn: ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+description: Chua cac nhom phan quyen mang va VLAN
+
+dn: ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalUnit
+ou: services
+description: Chua tai khoan dich vu he thong (FreeRADIUS)
+
+dn: ou=policies,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalUnit
+ou: policies
+description: Nhanh mo rong luu tru chinh sach mang
+
+
+# 2. Tài khoản dịch vụ hệ thống (Service Account)
+# --------------------------------------------------------------------
+# Tài khoản này dành riêng cho FreeRADIUS dùng để Bind và Search LDAP
+# Mật khẩu: RadiusSecret123!
+dn: cn=radius-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalRole
+objectClass: simpleSecurityObject
+cn: radius-svc
+userPassword: {SSHA}Y2MLbHZRvtxMY1qMkNZ1RIkqza6QCzeA
+description: Service Account read-only cho FreeRADIUS LDAP module
+
+
+# 3. Danh sách người dùng mẫu (Users)
+# --------------------------------------------------------------------
+# Mật khẩu mặc định cho toàn bộ user: P@ssword123!
+# Hash SSHA: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+
+# 3.1. Quản trị viên mạng & Dashboard
+dn: uid=admin01,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: admin01
+cn: Nguyen Quan Tri
+sn: Nguyen
+mail: admin01@attt.ptit.edu.vn
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+description: Quan tri vien he thong mang (VLAN 10)
+
+# 3.2. Giảng viên
+dn: uid=gv_nguyen,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: gv_nguyen
+cn: Nguyen Van Giang
+sn: Nguyen
+mail: gv_nguyen@ptit.edu.vn
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+description: Can bo giang vien (VLAN 30)
+
+# 3.3. Sinh viên 1
+dn: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: sv_an
+cn: Nguyen Van An
+sn: Nguyen
+mail: sv_an@ptit.edu.vn
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+description: Sinh vien khoa ATTT (VLAN 20)
+
+# 3.4. Sinh viên 2
+dn: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: sv_binh
+cn: Le Thi Binh
+sn: Le
+mail: sv_binh@ptit.edu.vn
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+description: Sinh vien khoa ATTT (VLAN 20)
+
+# 3.5. Tài khoản Test brute-force & kiểm thử cô lập
+dn: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: sv_test
+cn: Tai Khoan Test BruteForce
+sn: Test
+mail: sv_test@ptit.edu.vn
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+description: Tai khoan kiem thu tan cong do mat khau (VLAN 20 chuyen sang 99)
+
+
+# 4. Danh sách Nhóm đối tượng phân quyền mạng (Groups)
+# --------------------------------------------------------------------
+# 4.1. Nhóm Quản trị (VLAN 10)
+dn: cn=quantri,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: groupOfNames
+cn: quantri
+description: Nhom Quan tri vien mang - Dynamic VLAN 10
+member: uid=admin01,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+
+# 4.2. Nhóm Giảng viên (VLAN 30)
+dn: cn=giangvien,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: groupOfNames
+cn: giangvien
+description: Nhom Giang vien - Dynamic VLAN 30
+member: uid=gv_nguyen,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+
+# 4.3. Nhóm Sinh viên (VLAN 20)
+dn: cn=sinhvien,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: groupOfNames
+cn: sinhvien
+description: Nhom Sinh vien - Dynamic VLAN 20
+member: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+member: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+member: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+
+# 4.4. Nhóm Cách ly / Khóa tạm thời (VLAN 99)
+dn: cn=quarantine,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: groupOfNames
+cn: quarantine
+description: Nhom Cach ly vi pham hoac brute-force - Dynamic VLAN 99
+member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn

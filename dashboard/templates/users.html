@@ -1,0 +1,839 @@
+{% extends 'base.html' %}
+{% block title %}Quản lý Tài khoản OpenLDAP{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- PAGE HEADER -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-zinc-900">
+        <div>
+            <h2 class="text-2xl font-black text-white tracking-wider flex items-center space-x-2">
+                <span>DANH MỤC TÀI KHOẢN OPENLDAP</span>
+            </h2>
+            <p class="text-xs text-zinc-400 mt-1 font-mono">Quản lý vòng đời tài khoản tập trung: tra cứu nhanh, kiểm soát phân vùng VLAN và cơ chế cách ly / mở khóa</p>
+        </div>
+        {% if current_role == 'admin' %}
+        <div class="flex items-center space-x-2">
+            <button onclick="document.getElementById('modalAddUser').classList.remove('hidden')" 
+                class="px-4 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center space-x-2">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Thêm Tài Khoản Mới</span>
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- QUICK METRIC SHORTCUTS (THẺ THỐNG KÊ & PHÍM TẮT LỌC NHANH CHO CÁCH LY / MỞ KHÓA) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- 1. Tất cả tài khoản -->
+        <button type="button" onclick="setShortcutFilter('all')" 
+            class="shortcut-stat-card text-left bg-[#121215] p-4 rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all shadow-xl group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-400 group-hover:text-zinc-200 transition-colors">Tất cả tài khoản LDAP</p>
+                    <h3 class="text-2xl font-black text-white mt-1">{{ users|length }}</h3>
+                    <span class="text-[10px] text-zinc-500 font-mono mt-0.5 inline-block">Bấm để xem toàn bộ &rarr;</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 flex items-center justify-center text-base group-hover:bg-zinc-800 transition-colors">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+        </button>
+
+        <!-- 2. Tài khoản đang hoạt động (Có thể Cách ly) -->
+        <button type="button" onclick="setShortcutFilter('active')" 
+            class="shortcut-stat-card text-left bg-[#121215] p-4 rounded-2xl border border-zinc-800 hover:border-emerald-600/50 transition-all shadow-xl group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 group-hover:text-emerald-300 transition-colors flex items-center space-x-1">
+                        <i class="fa-solid fa-circle-check text-[10px]"></i>
+                        <span>Đang hoạt động (Có thể cách ly)</span>
+                    </p>
+                    <h3 class="text-2xl font-black text-white mt-1" id="statActiveCount">{{ active_count }}</h3>
+                    <span class="text-[10px] text-zinc-400 font-mono mt-0.5 inline-block">VLAN 10, 20, 30 &bull; Bấm để lọc</span>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 flex items-center justify-center text-base group-hover:border-emerald-500/60 transition-colors">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+        </button>
+
+        <!-- 3. Tài khoản bị cách ly (Cần Mở khóa) -->
+        <button type="button" onclick="setShortcutFilter('quarantine')" 
+            class="shortcut-stat-card text-left bg-[#121215] p-4 rounded-2xl border {% if quarantined_count > 0 %}border-red-600/80 bg-red-950/20 hover:border-red-500{% else %}border-zinc-800 hover:border-zinc-600{% endif %} transition-all shadow-xl group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider {% if quarantined_count > 0 %}text-red-400{% else %}text-zinc-400{% endif %} group-hover:text-red-300 transition-colors flex items-center space-x-1">
+                        <i class="fa-solid fa-triangle-exclamation text-[10px]"></i>
+                        <span>Đang bị cách ly (Cần mở khóa)</span>
+                    </p>
+                    <h3 class="text-2xl font-black {% if quarantined_count > 0 %}text-red-400 animate-pulse{% else %}text-white{% endif %} mt-1" id="statQuarantineCount">{{ quarantined_count }}</h3>
+                    <span class="text-[10px] font-mono mt-0.5 inline-block {% if quarantined_count > 0 %}text-red-400 font-bold{% else %}text-zinc-500{% endif %}">
+                        VLAN 99 (Quarantine) &bull; Bấm mở khóa &rarr;
+                    </span>
+                </div>
+                <div class="w-10 h-10 rounded-xl {% if quarantined_count > 0 %}bg-red-900/50 text-red-400 border border-red-600 animate-bounce{% else %}bg-zinc-900 border border-zinc-700 text-zinc-500{% endif %} flex items-center justify-center text-base transition-colors">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+            </div>
+        </button>
+    </div>
+
+    <!-- TOOLBAR: TÌM KIẾM USERNAME, SẮP XẾP (SORT) VÀ SHORTCUTS BỘ LỌC CÁCH LY / MỞ KHÓA -->
+    <div class="bg-[#121215] rounded-2xl border border-zinc-800 p-4 sm:p-5 shadow-xl space-y-3.5">
+        
+        <!-- TIÊU ĐỀ KHU VỰC TÌM KIẾM USERNAME -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2.5 border-b border-zinc-800/80 gap-2">
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span class="text-xs font-black tracking-wider uppercase text-white flex items-center space-x-1.5">
+                    <i class="fa-solid fa-user-tag text-amber-400 text-xs"></i>
+                    <span>TÌM KIẾM TÀI KHOẢN (USERNAME / UID)</span>
+                </span>
+            </div>
+            <span class="text-[11px] font-mono text-zinc-400">Gõ từ khóa để lọc tức thì &bull; Nhấn phím <kbd class="bg-zinc-800 text-amber-300 px-1.5 py-0.5 rounded border border-zinc-700 font-bold">/</kbd> để tìm nhanh</span>
+        </div>
+
+        <!-- Hàng 1: Ô Tìm kiếm tức thì & Các Dropdown Sắp xếp / Nhóm -->
+        <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+            
+            <!-- Ô TÌM KIẾM TỨC THỜI (LIVE INSTANT SEARCH) -->
+            <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-amber-400">
+                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                </span>
+                <input type="text" id="userSearchInput" 
+                    value="{{ search_query }}"
+                    placeholder="🔍 Nhập Username (UID) cần tìm... ví dụ: sv_vinh, admin01, gv_nguyen... (Phím tắt: /)" 
+                    autocomplete="off"
+                    class="w-full pl-9 pr-20 py-2.5 bg-black border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 focus:outline-none font-mono transition-colors">
+                
+                <!-- Phím tắt và Nút xóa -->
+                <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center space-x-1.5">
+                    <button type="button" id="clearSearchBtn" onclick="clearSearch()" 
+                        class="hidden text-zinc-400 hover:text-white px-1.5 py-0.5 rounded text-xs leading-none" title="Xóa tìm kiếm">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <span class="text-[10px] font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded hidden sm:inline-block" title="Phím tắt nhanh">/</span>
+                </div>
+            </div>
+
+            <!-- BỘ CHỌN SẮP XẾP (SORT SELECTOR) -->
+            <div class="flex items-center space-x-2">
+                <div class="relative min-w-[210px]">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                        <i class="fa-solid fa-arrow-down-wide-short text-xs"></i>
+                    </span>
+                    <select id="userSortSelect" onchange="handleSortChange(this.value)"
+                        class="w-full pl-8 pr-8 py-2.5 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono appearance-none transition-colors cursor-pointer">
+                        <option value="quarantine-first">🚨 Ưu tiên Cách ly (Cần mở khóa)</option>
+                        <option value="active-first">🛡️ Ưu tiên Hoạt động (Có thể cách ly)</option>
+                        <option value="uid-asc">🔤 Username: A &rarr; Z</option>
+                        <option value="uid-desc">🔤 Username: Z &rarr; A</option>
+                        <option value="cn-asc">👤 Họ tên: A &rarr; Z</option>
+                        <option value="cn-desc">👤 Họ tên: Z &rarr; A</option>
+                        <option value="group-asc">🏷️ Nhóm phân quyền (Group)</option>
+                        <option value="vlan-asc">🌐 Phân đoạn VLAN</option>
+                    </select>
+                    <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-zinc-500 text-[10px]">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </span>
+                </div>
+
+                <!-- LỌC THEO NHÓM LDAP CỤ THỂ -->
+                <div class="relative min-w-[170px]">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                        <i class="fa-solid fa-filter text-xs"></i>
+                    </span>
+                    <select id="userGroupFilter" onchange="handleGroupFilterChange(this.value)"
+                        class="w-full pl-8 pr-8 py-2.5 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono appearance-none transition-colors cursor-pointer">
+                        <option value="all">Tất cả nhóm</option>
+                        <option value="sinhvien">sinhvien (VLAN 20)</option>
+                        <option value="giangvien">giangvien (VLAN 30)</option>
+                        <option value="quantri">quantri (VLAN 10)</option>
+                        <option value="quarantine">quarantine (VLAN 99)</option>
+                    </select>
+                    <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-zinc-500 text-[10px]">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hàng 2: SHORTCUTS PHÍM TẮT LỌC NHANH CHO MỤC ĐÍCH "CÁCH LY" & "MỞ KHÓA" -->
+        <div class="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-zinc-800/80">
+            <!-- Nút lọc nhanh (Shortcuts Pills) -->
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mr-1 flex items-center">
+                    <i class="fa-solid fa-bolt text-amber-400 mr-1.5 text-xs"></i>
+                    <span>Lọc nhanh:</span>
+                </span>
+
+                <!-- 1. Tất cả -->
+                <button type="button" data-filter="all" onclick="setShortcutFilter('all')" 
+                    class="shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-white text-black shadow-sm">
+                    <i class="fa-solid fa-list-ul text-[10px]"></i>
+                    <span>Tất cả</span>
+                    <span class="px-1.5 py-0.2 rounded-md bg-zinc-200 text-black text-[10px] font-mono font-bold">{{ users|length }}</span>
+                </button>
+
+                <!-- 2. Shortcut: Cần Mở khóa (Đang bị cách ly) -->
+                <button type="button" data-filter="quarantine" onclick="setShortcutFilter('quarantine')" 
+                    class="shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-zinc-900 text-red-400 border border-red-500/40 hover:bg-red-950/40 hover:text-red-300">
+                    <i class="fa-solid fa-key text-[10px] text-amber-400"></i>
+                    <span>Cần Mở Khóa (Cách ly VLAN 99)</span>
+                    <span class="px-1.5 py-0.2 rounded-md bg-red-500 text-white text-[10px] font-mono font-bold animate-pulse">{{ quarantined_count }}</span>
+                </button>
+
+                <!-- 3. Shortcut: Đang hoạt động (Có thể Cách ly) -->
+                <button type="button" data-filter="active" onclick="setShortcutFilter('active')" 
+                    class="shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-zinc-900 text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white">
+                    <i class="fa-solid fa-shield-virus text-[10px] text-orange-400"></i>
+                    <span>Đang Hoạt Động (Có thể cách ly)</span>
+                    <span class="px-1.5 py-0.2 rounded-md bg-zinc-800 text-zinc-300 text-[10px] font-mono font-bold">{{ active_count }}</span>
+                </button>
+            </div>
+
+            <!-- Trạng thái kết quả & Nút Reset -->
+            <div class="flex items-center space-x-3 text-xs">
+                <span class="text-zinc-400 font-mono text-[11px]">
+                    Hiển thị <span id="visibleCount" class="font-bold text-white">{{ users|length }}</span> / <span id="totalCount" class="text-zinc-400">{{ users|length }}</span>
+                </span>
+                <button type="button" id="resetFiltersBtn" onclick="resetAllFilters()" 
+                    class="hidden text-[11px] font-semibold text-zinc-400 hover:text-white underline underline-offset-4 flex items-center space-x-1">
+                    <i class="fa-solid fa-rotate-left text-[10px]"></i>
+                    <span>Đặt lại</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- USERS TABLE (ĐEN TRẮNG CHỦ ĐẠO + ĐIỂM NHẤN CẢNH BÁO ĐỎ / CAM / VÀNG) -->
+    <div class="bg-[#121215] rounded-2xl border border-zinc-800 shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs" id="usersTable">
+                <thead class="bg-black text-zinc-400 uppercase font-bold border-b border-zinc-800 text-[10px] tracking-wider select-none">
+                    <tr>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('uid')" title="Bấm để sắp xếp theo UID">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Username (UID)</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_uid"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('cn')" title="Bấm để sắp xếp theo Họ và Tên">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Họ và Tên</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_cn"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('mail')" title="Bấm để sắp xếp theo Email">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Hòm thư (Email)</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_mail"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('group')" title="Bấm để sắp xếp theo Nhóm">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Nhóm LDAP</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_group"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('vlan')" title="Bấm để sắp xếp theo VLAN">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Phân đoạn VLAN</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_vlan"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 cursor-pointer hover:text-white transition-colors" onclick="sortTableByColumn('status')" title="Bấm để sắp xếp theo Trạng thái">
+                            <div class="flex items-center space-x-1.5">
+                                <span>Trạng thái</span>
+                                <i class="fa-solid fa-sort text-zinc-600 text-[10px]" id="sortIcon_status"></i>
+                            </div>
+                        </th>
+                        <th class="px-6 py-3.5 text-right">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800/80 text-zinc-300 bg-[#121215]" id="usersTableBody">
+                    {% for u in users %}
+                    <tr class="user-row hover:bg-zinc-900/50 transition-colors"
+                        data-uid="{{ u.uid|lower }}"
+                        data-cn="{{ u.cn|lower }}"
+                        data-mail="{{ (u.mail or '')|lower }}"
+                        data-group="{{ u.group|lower }}"
+                        data-vlan="{{ u.vlan }}"
+                        data-status="{% if u.status == 'quarantined' or u.group == 'quarantine' %}quarantined{% else %}active{% endif %}">
+                        
+                        <td class="px-6 py-4 font-bold font-mono text-white text-sm flex items-center space-x-2.5">
+                            <span class="w-7 h-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 text-xs font-mono font-bold">
+                                {{ u.uid[:2]|upper }}
+                            </span>
+                            <span class="user-uid-cell">{{ u.uid }}</span>
+                        </td>
+                        
+                        <td class="px-6 py-4 font-medium text-white user-cn-cell">{{ u.cn }}</td>
+                        
+                        <td class="px-6 py-4 text-zinc-400 font-mono text-[11px]">{{ u.mail or '-' }}</td>
+                        
+                        <td class="px-6 py-4 font-semibold">
+                            <!-- Nhãn nhóm LDAP: Phân cấp theo mức độ Đỏ / Cam / Vàng / Trắng -->
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-extrabold font-mono uppercase
+                                {% if u.group == 'quarantine' %}bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse
+                                {% elif u.group == 'quantri' %}bg-orange-500/20 text-orange-400 border border-orange-500/40
+                                {% elif u.group == 'giangvien' %}bg-amber-500/20 text-amber-300 border border-amber-500/40
+                                {% else %}bg-zinc-800 text-zinc-200 border border-zinc-700{% endif %}">
+                                {{ u.group }}
+                            </span>
+                        </td>
+
+                        <td class="px-6 py-4">
+                            <!-- Nhãn Phân đoạn VLAN -->
+                            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold font-mono uppercase
+                                {% if u.vlan == '99' %}bg-red-500/20 text-red-400 border border-red-500/50
+                                {% elif u.vlan == '10' %}bg-orange-500/20 text-orange-400 border border-orange-500/40
+                                {% elif u.vlan == '30' %}bg-amber-500/20 text-amber-300 border border-amber-500/40
+                                {% else %}bg-zinc-800 text-zinc-200 border border-zinc-700{% endif %}">
+                                VLAN {{ u.vlan }}
+                            </span>
+                        </td>
+
+                        <td class="px-6 py-4">
+                            {% if u.status == 'quarantined' or u.group == 'quarantine' %}
+                                <!-- MỨC ĐỘ 1: ĐỎ KHẨN CẤP (BỊ CÁCH LY) -->
+                                <span class="inline-flex items-center text-red-400 font-extrabold text-[11px] animate-pulse">
+                                    <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Bị cách ly (VLAN 99)
+                                </span>
+                            {% else %}
+                                <!-- TRẠNG THÁI BÌNH THƯỜNG: TRẮNG / XÁM -->
+                                <span class="inline-flex items-center text-zinc-300 font-medium text-[11px]">
+                                    <i class="fa-solid fa-circle-check mr-1.5 text-emerald-400"></i> Hoạt động
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td class="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
+                            {% if current_role == 'admin' %}
+                                {% if u.group == 'quarantine' %}
+                                <!-- Mở khóa tài khoản: Nút VÀNG / HỔ PHÁCH (Mở modal chọn nhóm khôi phục) -->
+                                <button type="button" 
+                                    onclick="openUnlockModal('{{ u.uid }}', '{{ u.cn|escape }}', '{{ u.group }}')"
+                                    title="Mở khóa tài khoản và khôi phục quyền truy cập" 
+                                    class="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm transition-all inline-flex items-center">
+                                    <i class="fa-solid fa-key mr-1"></i> Mở khóa
+                                </button>
+                                {% else %}
+                                <!-- Cách ly thủ công: Nút CAM CẢNH BÁO (Kèm xác nhận an toàn) -->
+                                <form method="POST" action="{{ url_for('user_quarantine', uid=u.uid) }}" class="inline-block"
+                                    onsubmit="return confirm('CẢNH BÁO AN TOÀN:\nBạn có chắc chắn muốn CÁCH LY tài khoản \'{{ u.uid }}\'?\nThiết bị sẽ bị chuyển ngay sang VLAN 99 (Quarantine).')">
+                                    <input type="hidden" name="sid" value="{{ sid }}">
+                                    <button type="submit" title="Chuyển vào diện cách ly (VLAN 99)" 
+                                        class="px-2.5 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider shadow-sm transition-all inline-flex items-center">
+                                        <i class="fa-solid fa-shield-virus mr-1"></i> Cách ly
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <!-- Xóa tài khoản: Nút ĐỎ NGUY HIỂM -->
+                                <form method="POST" action="{{ url_for('user_delete', uid=u.uid) }}" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản {{ u.uid }} khỏi LDAP?')">
+                                    <input type="hidden" name="sid" value="{{ sid }}">
+                                    <button type="submit" title="Xóa tài khoản vĩnh viễn" 
+                                        class="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="text-zinc-500 text-xs italic font-mono">Chỉ xem</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    <!-- DÒNG TRẠNG THÁI RỖNG (KHI TÌM KIẾM HOẶC LỌC KHÔNG CÓ KẾT QUẢ) -->
+                    <tr id="emptySearchRow" class="hidden">
+                        <td colspan="7" class="px-6 py-12 text-center text-zinc-400 bg-zinc-950/40">
+                            <div class="max-w-sm mx-auto space-y-3">
+                                <div class="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-500 flex items-center justify-center mx-auto text-xl">
+                                    <i class="fa-solid fa-user-slash"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-white font-bold text-sm">Không tìm thấy tài khoản phù hợp</h4>
+                                    <p class="text-xs text-zinc-500 mt-1 font-mono" id="emptySearchDesc">Không có tài khoản nào khớp với điều kiện tìm kiếm hoặc bộ lọc.</p>
+                                </div>
+                                <button type="button" onclick="resetAllFilters()" 
+                                    class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-semibold transition-all inline-flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-rotate-left text-[10px]"></i>
+                                    <span>Xóa bộ lọc & Hiển thị tất cả</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL MỞ KHÓA TÀI KHOẢN (CHỌN NHÓM KHÔI PHỤC) -->
+{% if current_role == 'admin' %}
+<div id="modalUnlockUser" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#121215] rounded-2xl shadow-2xl max-w-md w-full border border-amber-500/40 overflow-hidden">
+        <div class="bg-black px-6 py-4 text-white flex items-center justify-between border-b border-zinc-800">
+            <h3 class="font-extrabold text-sm tracking-wider uppercase flex items-center space-x-2 text-amber-400">
+                <i class="fa-solid fa-key text-amber-400"></i>
+                <span>Mở Khóa Tài Khoản LDAP</span>
+            </h3>
+            <button onclick="closeUnlockModal()" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+
+        <form id="unlockUserForm" method="POST" action="" class="p-6 space-y-4 bg-[#121215]">
+            <input type="hidden" name="sid" id="unlockSidInput" value="{{ sid }}">
+            <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                <p class="font-bold flex items-center space-x-1.5">
+                    <i class="fa-solid fa-shield-heart text-amber-400"></i>
+                    <span>Khôi phục quyền truy cập mạng</span>
+                </p>
+                <p class="text-[11px] text-zinc-300 mt-1">
+                    Tài khoản: <strong id="unlockUserUidDisplay" class="font-mono text-white text-sm"></strong> 
+                    (<span id="unlockUserCnDisplay" class="text-zinc-200"></span>)
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1.5">Chọn nhóm quyền khôi phục (Target Group) *</label>
+                <select name="target_group" id="unlockTargetGroup" class="w-full px-3.5 py-2.5 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-amber-400 focus:outline-none font-mono">
+                    <option value="sinhvien">sinhvien (VLAN 20 - Học tập)</option>
+                    <option value="giangvien">giangvien (VLAN 30 - Nghiệp vụ)</option>
+                    <option value="quantri">quantri (VLAN 10 - Quản trị mạng)</option>
+                </select>
+                <span class="text-[10px] text-zinc-400 font-mono mt-1.5 block">
+                    Người dùng sẽ được chuyển ra khỏi nhóm <code class="text-red-400 font-bold">quarantine</code> và kết nối vào VLAN chỉ định.
+                </span>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-800 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeUnlockModal()" class="px-4 py-2 border border-zinc-700 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-900">Hủy</button>
+                <button type="submit" class="px-5 py-2 bg-amber-400 hover:bg-amber-300 text-black rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center space-x-1.5">
+                    <i class="fa-solid fa-unlock text-xs"></i>
+                    <span>Xác nhận Mở Khóa</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL ADD USER (NỀN ĐEN CARBON, CHỮ TRẮNG, CHÚ Ý VÀNG SSHA) -->
+<div id="modalAddUser" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#121215] rounded-2xl shadow-2xl max-w-md w-full border border-zinc-800 overflow-hidden">
+        <div class="bg-black px-6 py-4 text-white flex items-center justify-between border-b border-zinc-800">
+            <h3 class="font-extrabold text-sm tracking-wider uppercase flex items-center space-x-2">
+                <i class="fa-solid fa-user-plus text-white"></i>
+                <span>Thêm Tài Khoản Mới vào LDAP</span>
+            </h3>
+            <button onclick="document.getElementById('modalAddUser').classList.add('hidden')" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('user_create') }}" class="p-6 space-y-4 bg-[#121215]">
+            <input type="hidden" name="sid" value="{{ sid }}">
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Username (UID) *</label>
+                <input type="text" name="uid" required placeholder="sv_tuan" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Họ và Tên *</label>
+                    <input type="text" name="cn" required placeholder="Nguyễn Văn Tuấn" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Họ (SN)</label>
+                    <input type="text" name="sn" placeholder="Nguyễn" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Hòm thư (Email)</label>
+                <input type="email" name="mail" placeholder="sv_tuan@ptit.edu.vn" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Mật khẩu ban đầu *</label>
+                <input type="password" name="password" required placeholder="••••••••••••" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+                <!-- Chú ý mức Vàng: Thuật toán băm SSHA -->
+                <span class="text-[10px] text-amber-300 font-mono mt-1 block flex items-center space-x-1">
+                    <i class="fa-solid fa-lock text-[9px]"></i>
+                    <span>Tự động mã hóa chuẩn {SSHA} với Salt ngẫu nhiên trước khi lưu vào LDAP.</span>
+                </span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Nhóm phân quyền (Group) *</label>
+                <select name="group" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+                    <option value="sinhvien">sinhvien (VLAN 20 - Học tập)</option>
+                    <option value="giangvien">giangvien (VLAN 30 - Nghiệp vụ)</option>
+                    <option value="quantri">quantri (VLAN 10 - Quản trị mạng)</option>
+                    <option value="quarantine">quarantine (VLAN 99 - Cách ly)</option>
+                </select>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-800 flex items-center justify-end space-x-2">
+                <button type="button" onclick="document.getElementById('modalAddUser').classList.add('hidden')" class="px-4 py-2 border border-zinc-700 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-900">Hủy</button>
+                <button type="submit" class="px-5 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-black uppercase tracking-wider shadow-lg">Tạo User LDAP</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- JAVASCRIPT: INSTANT LIVE SEARCH, SORT & SHORTCUTS -->
+<script>
+(function() {
+    // State variables
+    let currentShortcut = "{{ initial_filter or 'all' }}";
+    let currentGroup = "all";
+    let currentSort = "quarantine-first"; // Mặc định ưu tiên cách ly lên đầu để dễ mở khóa
+    let tableSortCol = null;
+    let tableSortAsc = true;
+
+    const searchInput = document.getElementById('userSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    const sortSelect = document.getElementById('userSortSelect');
+    const groupSelect = document.getElementById('userGroupFilter');
+    const visibleCountEl = document.getElementById('visibleCount');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    const emptyRow = document.getElementById('emptySearchRow');
+    const tbody = document.getElementById('usersTableBody');
+    const shortcutButtons = document.querySelectorAll('.shortcut-btn');
+
+    // Lấy toàn bộ các hàng user từ DOM
+    function getRows() {
+        return Array.from(tbody.querySelectorAll('tr.user-row'));
+    }
+
+    // Modal Mở khóa
+    window.openUnlockModal = function(uid, cn, group) {
+        const modal = document.getElementById('modalUnlockUser');
+        const form = document.getElementById('unlockUserForm');
+        const uidDisplay = document.getElementById('unlockUserUidDisplay');
+        const cnDisplay = document.getElementById('unlockUserCnDisplay');
+        const selectTarget = document.getElementById('unlockTargetGroup');
+        const sidInput = document.getElementById('unlockSidInput');
+
+        if (!modal || !form) return;
+
+        const currentSid = (sidInput && sidInput.value) ? sidInput.value : ('{{ sid }}' || new URLSearchParams(window.location.search).get('sid') || '');
+        if (sidInput && currentSid) sidInput.value = currentSid;
+
+        form.action = '/users/unlock/' + encodeURIComponent(uid) + (currentSid ? ('?sid=' + encodeURIComponent(currentSid)) : '');
+        uidDisplay.textContent = uid;
+        cnDisplay.textContent = cn;
+
+        // Dự đoán nhóm khôi phục dựa trên UID tiền tố (ví dụ gv_ -> giangvien, admin_ -> quantri)
+        if (uid.startsWith('gv_') || uid.includes('giangvien')) {
+            selectTarget.value = 'giangvien';
+        } else if (uid.startsWith('admin') || uid.startsWith('qt_') || uid.includes('quantri')) {
+            selectTarget.value = 'quantri';
+        } else {
+            selectTarget.value = 'sinhvien';
+        }
+
+        modal.classList.remove('hidden');
+    };
+
+    window.closeUnlockModal = function() {
+        const modal = document.getElementById('modalUnlockUser');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // Đổi Shortcut Filter
+    window.setShortcutFilter = function(filterVal) {
+        currentShortcut = filterVal;
+        
+        // Cập nhật trạng thái UI nút shortcut
+        shortcutButtons.forEach(btn => {
+            const btnFilter = btn.getAttribute('data-filter');
+            if (btnFilter === currentShortcut) {
+                if (btnFilter === 'quarantine') {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-red-600 text-white shadow-lg shadow-red-900/30';
+                } else if (btnFilter === 'active') {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-emerald-600 text-white shadow-lg shadow-emerald-900/30';
+                } else {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-white text-black shadow-lg';
+                }
+            } else {
+                if (btnFilter === 'quarantine') {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-zinc-900 text-red-400 border border-red-500/40 hover:bg-red-950/40 hover:text-red-300';
+                } else if (btnFilter === 'active') {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-zinc-900 text-zinc-300 border border-zinc-700 hover:bg-zinc-800 hover:text-white';
+                } else {
+                    btn.className = 'shortcut-btn px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-white';
+                }
+            }
+        });
+
+        applyFilters();
+    };
+
+    // Thay đổi Sắp xếp qua Dropdown
+    window.handleSortChange = function(sortVal) {
+        currentSort = sortVal;
+        tableSortCol = null; // Reset sort header column
+        resetTableSortIcons();
+        applyFilters();
+    };
+
+    // Thay đổi Lọc nhóm
+    window.handleGroupFilterChange = function(groupVal) {
+        currentGroup = groupVal;
+        applyFilters();
+    };
+
+    // Sắp xếp qua Click Header Cột Table
+    window.sortTableByColumn = function(colName) {
+        if (tableSortCol === colName) {
+            tableSortAsc = !tableSortAsc;
+        } else {
+            tableSortCol = colName;
+            tableSortAsc = true;
+        }
+
+        // Cập nhật icon
+        resetTableSortIcons();
+        const icon = document.getElementById('sortIcon_' + colName);
+        if (icon) {
+            icon.className = tableSortAsc ? 'fa-solid fa-sort-up text-white text-[10px]' : 'fa-solid fa-sort-down text-white text-[10px]';
+        }
+
+        currentSort = 'custom-table-col';
+        applyFilters();
+    };
+
+    function resetTableSortIcons() {
+        ['uid', 'cn', 'mail', 'group', 'vlan', 'status'].forEach(col => {
+            const icon = document.getElementById('sortIcon_' + col);
+            if (icon) {
+                icon.className = 'fa-solid fa-sort text-zinc-600 text-[10px]';
+            }
+        });
+    }
+
+    // Xóa ô tìm kiếm
+    window.clearSearch = function() {
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+            applyFilters();
+        }
+    };
+
+    // Đặt lại toàn bộ bộ lọc & sắp xếp
+    window.resetAllFilters = function() {
+        if (searchInput) searchInput.value = '';
+        currentGroup = 'all';
+        if (groupSelect) groupSelect.value = 'all';
+        currentSort = 'quarantine-first';
+        if (sortSelect) sortSelect.value = 'quarantine-first';
+        tableSortCol = null;
+        resetTableSortIcons();
+        setShortcutFilter('all');
+    };
+
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Hàm áp dụng Lọc và Sắp xếp chính
+    function applyFilters() {
+        const rows = getRows();
+        const term = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+        // Hiển thị / ẩn nút xóa tìm kiếm
+        if (clearBtn) {
+            if (term.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
+
+        // Kiểm tra xem có bộ lọc nào đang bật không
+        const isFiltered = (currentShortcut !== 'all') || (currentGroup !== 'all') || (term.length > 0);
+        if (resetBtn) {
+            if (isFiltered) {
+                resetBtn.classList.remove('hidden');
+            } else {
+                resetBtn.classList.add('hidden');
+            }
+        }
+
+        let visibleCount = 0;
+
+        // 1. Lọc các hàng và Highlight kết quả tìm kiếm
+        rows.forEach(row => {
+            const uid = row.dataset.uid || '';
+            const cn = row.dataset.cn || '';
+            const mail = row.dataset.mail || '';
+            const group = row.dataset.group || '';
+            const status = row.dataset.status || '';
+
+            let matchShortcut = true;
+            if (currentShortcut === 'quarantine') {
+                matchShortcut = (status === 'quarantined' || group === 'quarantine');
+            } else if (currentShortcut === 'active') {
+                matchShortcut = (status === 'active' && group !== 'quarantine');
+            }
+
+            let matchGroup = true;
+            if (currentGroup !== 'all') {
+                matchGroup = (group === currentGroup);
+            }
+
+            let matchSearch = true;
+            if (term) {
+                matchSearch = uid.includes(term) || cn.includes(term) || mail.includes(term) || group.includes(term);
+            }
+
+            if (matchShortcut && matchGroup && matchSearch) {
+                row.classList.remove('hidden');
+                visibleCount++;
+
+                // Highlight từ khóa tìm kiếm trên Username (UID)
+                const uidSpan = row.querySelector('.user-uid-cell');
+                if (uidSpan) {
+                    if (!row.dataset.rawUid) row.dataset.rawUid = uidSpan.textContent.trim();
+                    const rawUid = row.dataset.rawUid;
+                    if (term && rawUid.toLowerCase().includes(term)) {
+                        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+                        uidSpan.innerHTML = rawUid.replace(regex, '<mark class="bg-amber-400 text-black px-1 rounded font-black">$1</mark>');
+                    } else {
+                        uidSpan.textContent = rawUid;
+                    }
+                }
+
+                // Highlight từ khóa trên Họ và Tên (CN)
+                const cnSpan = row.querySelector('.user-cn-cell');
+                if (cnSpan) {
+                    if (!row.dataset.rawCn) row.dataset.rawCn = cnSpan.textContent.trim();
+                    const rawCn = row.dataset.rawCn;
+                    if (term && rawCn.toLowerCase().includes(term)) {
+                        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+                        cnSpan.innerHTML = rawCn.replace(regex, '<mark class="bg-amber-400/80 text-black px-1 rounded font-medium">$1</mark>');
+                    } else {
+                        cnSpan.textContent = rawCn;
+                    }
+                }
+
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+
+        // 2. Sắp xếp các hàng (Sort)
+        rows.sort((a, b) => {
+            if (tableSortCol) {
+                let valA = a.dataset[tableSortCol] || '';
+                let valB = b.dataset[tableSortCol] || '';
+
+                if (tableSortCol === 'vlan') {
+                    return tableSortAsc ? (parseInt(valA) - parseInt(valB)) : (parseInt(valB) - parseInt(valA));
+                }
+
+                const cmp = valA.localeCompare(valB, 'vi');
+                return tableSortAsc ? cmp : -cmp;
+            }
+
+            // Sắp xếp qua Dropdown
+            if (currentSort === 'quarantine-first') {
+                const aIsQ = (a.dataset.status === 'quarantined' || a.dataset.group === 'quarantine') ? 1 : 0;
+                const bIsQ = (b.dataset.status === 'quarantined' || b.dataset.group === 'quarantine') ? 1 : 0;
+                if (aIsQ !== bIsQ) return bIsQ - aIsQ; // Quarantined trước
+                return a.dataset.uid.localeCompare(b.dataset.uid);
+            } else if (currentSort === 'active-first') {
+                const aIsActive = (a.dataset.status === 'active' && a.dataset.group !== 'quarantine') ? 1 : 0;
+                const bIsActive = (b.dataset.status === 'active' && b.dataset.group !== 'quarantine') ? 1 : 0;
+                if (aIsActive !== bIsActive) return bIsActive - aIsActive; // Active trước
+                return a.dataset.uid.localeCompare(b.dataset.uid);
+            } else if (currentSort === 'uid-asc') {
+                return a.dataset.uid.localeCompare(b.dataset.uid);
+            } else if (currentSort === 'uid-desc') {
+                return b.dataset.uid.localeCompare(a.dataset.uid);
+            } else if (currentSort === 'cn-asc') {
+                return a.dataset.cn.localeCompare(b.dataset.cn, 'vi');
+            } else if (currentSort === 'cn-desc') {
+                return b.dataset.cn.localeCompare(a.dataset.cn, 'vi');
+            } else if (currentSort === 'group-asc') {
+                return a.dataset.group.localeCompare(b.dataset.group);
+            } else if (currentSort === 'vlan-asc') {
+                return parseInt(a.dataset.vlan || 0) - parseInt(b.dataset.vlan || 0);
+            }
+            return 0;
+        });
+
+        // Gắn lại các hàng đã sắp xếp vào bảng
+        rows.forEach(r => tbody.appendChild(r));
+
+        // Di chuyển emptyRow xuống cuối cùng
+        if (emptyRow) tbody.appendChild(emptyRow);
+
+        // 3. Cập nhật số đếm & hiển thị Empty State
+        if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+
+        if (emptyRow) {
+            if (visibleCount === 0) {
+                emptyRow.classList.remove('hidden');
+                const desc = document.getElementById('emptySearchDesc');
+                if (desc) {
+                    if (term) {
+                        desc.textContent = `Không tìm thấy tài khoản nào khớp với từ khóa "${term}".`;
+                    } else if (currentShortcut === 'quarantine') {
+                        desc.textContent = 'Hiện tại không có tài khoản nào trong diện cách ly (VLAN 99).';
+                    } else {
+                        desc.textContent = 'Không có tài khoản nào phù hợp với bộ lọc đã chọn.';
+                    }
+                }
+            } else {
+                emptyRow.classList.add('hidden');
+            }
+        }
+    }
+
+    // Lắng nghe sự kiện gõ tìm kiếm tức thời
+    if (searchInput) {
+        searchInput.addEventListener('input', applyFilters);
+    }
+
+    // Phím tắt: Bấm '/' để focus tìm kiếm, Esc để clear
+    document.addEventListener('keydown', function(e) {
+        if (e.key === '/' && document.activeElement !== searchInput && !['input', 'textarea', 'select'].includes(document.activeElement.tagName.toLowerCase())) {
+            e.preventDefault();
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        } else if (e.key === 'Escape' && document.activeElement === searchInput) {
+            if (searchInput.value) {
+                clearSearch();
+            } else {
+                searchInput.blur();
+            }
+        }
+    });
+
+    // Khởi chạy ban đầu
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialFilterParam = urlParams.get('filter');
+    const initialSearchParam = urlParams.get('search');
+    
+    if (initialFilterParam && ['quarantine', 'active', 'all'].includes(initialFilterParam)) {
+        setShortcutFilter(initialFilterParam);
+    } else {
+        setShortcutFilter(currentShortcut);
+    }
+
+    if (initialSearchParam && searchInput) {
+        searchInput.value = initialSearchParam;
+        applyFilters();
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # ====================================================================
+  # 1. THƯ MỤC DANH TÍNH TẬP TRUNG (OPENLDAP)
+  # ====================================================================
+  nac_ldap:
+    build:
+      context: ./ldap
+    container_name: nac_ldap
+    ports:
+      - "389:389"
+    networks:
+      - nac-net
+    restart: unless-stopped
+
+  # ====================================================================
+  # 2. CƠ SỞ DỮ LIỆU CHÍNH SÁCH MẠNG & LOG (MARIADB)
+  # ====================================================================
+  nac_mariadb:
+    image: mariadb:10.11
+    container_name: nac_mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: "RootPassword123!"
+      MYSQL_DATABASE: "radius"
+      MYSQL_USER: "radius"
+      MYSQL_PASSWORD: "RadPassword123!"
+    volumes:
+      - ./sql/init-policy.sql:/docker-entrypoint-initdb.d/init-policy.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - nac-net
+    restart: unless-stopped
+
+  # ====================================================================
+  # 3. MÁY CHỦ XÁC THỰC AAA & DYNAMIC NAC (FREERADIUS)
+  # ====================================================================
+  nac_radius:
+    build:
+      context: ./radius
+    container_name: nac_radius
+    depends_on:
+      - nac_ldap
+      - nac_mariadb
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    networks:
+      - nac-net
+    restart: unless-stopped
+
+  # ====================================================================
+  # 4. BẢNG ĐIỀU KHIỂN QUẢN TRỊ & ACTIVE DEFENSE (FLASK DASHBOARD)
+  # ====================================================================
+  nac_dashboard:
+    build:
+      context: ./dashboard
+    container_name: nac_dashboard
+    depends_on:
+      - nac_ldap
+      - nac_mariadb
+      - nac_radius
+    environment:
+      SECRET_KEY: "ptit-network-security-nac-secret-key-2026"
+      LDAP_HOST: "nac_ldap"
+      LDAP_PORT: 389
+      LDAP_BASE_DN: "dc=attt,dc=ptit,dc=edu,dc=vn"
+      LDAP_BIND_DN: "cn=admin,dc=attt,dc=ptit,dc=edu,dc=vn"
+      LDAP_BIND_PASSWORD: "AdminPassword123!"
+      DB_HOST: "nac_mariadb"
+      DB_PORT: 3306
+      DB_USER: "radius"
+      DB_PASSWORD: "RadPassword123!"
+      DB_NAME: "radius"
+      BRUTEFORCE_THRESHOLD: 6
+      BRUTEFORCE_WINDOW_SECONDS: 180
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./dashboard:/app
+    networks:
+      - nac-net
+    restart: unless-stopped
+
+networks:
+  nac-net:
+    name: nac-net
+    driver: bridge

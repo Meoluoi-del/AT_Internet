@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NAC Management Center{% endblock %} - PTITHCM Network Security</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#09090b',
+                        cardbg: '#121215',
+                        subtlebg: '#18181b',
+                        bordercolor: '#27272a'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for deep dark aesthetic */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+    </style>
+</head>
+<body class="bg-black text-zinc-100 flex h-screen overflow-hidden font-sans selection:bg-white selection:text-black">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-black border-r border-zinc-800 text-white flex flex-col justify-between shadow-2xl z-20">
+        <div>
+            <!-- Brand -->
+            <div class="px-6 py-5 border-b border-zinc-800 flex items-center space-x-3 bg-zinc-950/60">
+                <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-black font-extrabold text-xl shadow-lg ring-1 ring-zinc-700">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-base tracking-wider text-white">NAC CONTROL</h1>
+                    <p class="text-[11px] text-zinc-400 font-mono tracking-widest uppercase">PTITHCM Security</p>
+                </div>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="mt-6 px-4 space-y-1.5">
+                <a href="{{ url_for('index') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'index' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-chart-pie w-6 text-sm"></i>
+                    <span>Tổng quan (Overview)</span>
+                </a>
+
+                <a href="{{ url_for('users_list') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'users_list' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-users-gear w-6 text-sm"></i>
+                    <span>Tài khoản LDAP</span>
+                </a>
+
+                <a href="{{ url_for('policies_list') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'policies_list' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-network-wired w-6 text-sm"></i>
+                    <span>Chính sách VLAN</span>
+                </a>
+
+                <a href="{{ url_for('logs_view') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'logs_view' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-clipboard-list w-6 text-sm"></i>
+                    <span>Log Xác thực (RADIUS)</span>
+                </a>
+
+                <a href="{{ url_for('sessions_view') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'sessions_view' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-wave-square w-6 text-sm"></i>
+                    <span>Phiên trực tuyến (Acct)</span>
+                </a>
+
+                <a href="{{ url_for('audit_view') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'audit_view' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-fingerprint w-6 text-sm"></i>
+                    <span>Nhật ký Audit Admin</span>
+                </a>
+
+                <!-- MỞ RỘNG BẢO MẬT: MFA & SSO -->
+                <div class="pt-2 pb-1 border-t border-zinc-900 mt-2">
+                    <p class="px-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Mở rộng Bảo mật</p>
+                </div>
+
+                <a href="{{ url_for('mfa_setup') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint in ['mfa_setup', 'mfa_verify'] %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-shield-halved w-6 text-sm text-amber-400"></i>
+                    <span>Xác thực 2FA / MFA</span>
+                </a>
+
+                <a href="{{ url_for('sso_portal') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'sso_portal' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-key w-6 text-sm text-blue-400"></i>
+                    <span>Cổng SSO Tập trung</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- User Info Bottom -->
+        <div class="p-4 border-t border-zinc-800 bg-zinc-950">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white font-bold">
+                        <i class="fa-solid fa-user-shield text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-white leading-tight font-mono">{{ current_user }}</p>
+                        <!-- Role attention level: Admin = Red/Orange attention, Auditor = Orange/Amber attention -->
+                        <span class="inline-block text-[10px] px-2 py-0.5 rounded font-extrabold uppercase tracking-wider mt-0.5
+                            {% if current_role == 'admin' %}bg-orange-500/20 text-orange-400 border border-orange-500/40
+                            {% else %}bg-amber-500/20 text-amber-300 border border-amber-500/40{% endif %}">
+                            <i class="fa-solid {% if current_role == 'admin' %}fa-crown{% else %}fa-eye{% endif %} text-[9px] mr-1"></i>{{ current_role }}
+                        </span>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}" title="Đăng xuất khỏi tab này" class="text-zinc-400 hover:text-red-400 p-2 rounded-lg hover:bg-zinc-900 transition-colors">
+                    <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+                </a>
+            </div>
+            <!-- Tab Session Indicator -->
+            <div class="mt-2.5 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                <span class="flex items-center space-x-1.5">
+                    <i class="fa-solid fa-window-restore text-[10px] text-zinc-500"></i>
+                    <span>Phiên Tab:</span>
+                </span>
+                <span class="px-2 py-0.5 bg-zinc-900 border border-zinc-700 rounded text-white font-bold tracking-wider">#{{ sid }}</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-black">
+        <!-- TOPBAR -->
+        <header class="bg-zinc-950 border-b border-zinc-800 px-8 py-3.5 flex items-center justify-between shadow-lg">
+            <div class="flex items-center space-x-4">
+                <span class="text-xs font-bold px-3 py-1 rounded-full bg-zinc-900 text-zinc-200 border border-zinc-700 flex items-center space-x-1.5">
+                    <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                    <span class="w-2 h-2 rounded-full bg-white inline-block"></span>
+                    <span>Cụm Microservices Live</span>
+                </span>
+                <span class="text-xs text-zinc-400 font-mono">dc=attt,dc=ptit,dc=edu,dc=vn</span>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <!-- Nút mở Tab mới với phiên độc lập -->
+                <a href="{{ url_for('new_tab') }}" target="_blank" 
+                    class="text-xs px-3 py-1.5 bg-white hover:bg-zinc-200 text-black rounded-lg font-black uppercase tracking-wider flex items-center space-x-1.5 shadow transition-all" 
+                    title="Mở một tab trình duyệt mới với phiên đăng nhập riêng biệt">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                    <span>+ Tab Mới (Phiên Riêng)</span>
+                </a>
+
+                {% if current_role == 'auditor' %}
+                <!-- Chú ý mức CAM/VÀNG: Chế độ chỉ đọc của Auditor -->
+                <span class="text-xs px-3 py-1.5 bg-amber-500/10 text-amber-300 rounded-lg font-bold border border-amber-500/40 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-shield-cat"></i>
+                    <span>Chế độ Auditor (Chỉ đọc)</span>
+                </span>
+                {% endif %}
+                <span class="text-xs text-zinc-400 font-mono hidden md:inline">FreeRADIUS 3.0 &bull; OpenLDAP</span>
+            </div>
+        </header>
+
+        <!-- ALERTS BANNER - MỨC ĐỘ 1: ĐỎ KHẨN CẤP / CỰC KỲ NGUY HIỂM & GIÁM SÁT THỜI GIAN THỰC -->
+        <div id="liveAlertsContainer">
+        {% if active_alerts %}
+        <div class="bg-red-950 border-b border-red-700/80 text-white px-8 py-3 flex items-center justify-between shadow-2xl animate-pulse">
+            <div class="flex items-center space-x-3 text-xs md:text-sm font-bold text-red-200">
+                <span class="p-1.5 bg-red-600 text-white rounded-lg inline-flex items-center justify-center">
+                    <i class="fa-solid fa-triangle-exclamation text-base"></i>
+                </span>
+                <span>
+                    <strong class="text-white uppercase tracking-wider">[CẢNH BÁO MỨC ĐỎ] ACTIVE DEFENSE:</strong> 
+                    Phát hiện tấn công Brute-force trên tài khoản <code class="bg-red-900/80 text-white px-2 py-0.5 rounded border border-red-500 font-mono">{{ active_alerts[0].username }}</code> 
+                    ({{ active_alerts[0].failed_count }} lần thất bại liên tiếp - ĐÃ VƯỢT NGƯỠNG 6 LẦN). Đã tự động kích hoạt cô lập sang <strong>VLAN 99 (Quarantine)</strong>!
+                </span>
+            </div>
+            <a href="{{ url_for('users_list', filter='quarantine') }}" class="text-xs font-extrabold uppercase px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all shadow flex items-center space-x-1.5">
+                <i class="fa-solid fa-key text-[10px]"></i>
+                <span>Xử lý ngay &rarr;</span>
+            </a>
+        </div>
+        {% endif %}
+        </div>
+
+        <!-- FLASH MESSAGES - PHÂN BIỆT THEO MỨC ĐỘ: ĐỎ, CAM, VÀNG, TRẮNG -->
+        <div class="px-8 mt-4">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-3 px-4 py-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-lg
+                            {% if category == 'danger' %}bg-red-950/80 text-red-200 border border-red-700
+                            {% elif category == 'warning' %}bg-orange-950/80 text-orange-200 border border-orange-700
+                            {% elif category == 'info' %}bg-amber-950/80 text-amber-200 border border-amber-700
+                            {% else %}bg-zinc-900 text-white border border-zinc-700{% endif %}">
+                            <div class="flex items-center space-x-2.5">
+                                <i class="fa-solid text-sm
+                                    {% if category == 'danger' %}fa-circle-xmark text-red-400
+                                    {% elif category == 'warning' %}fa-triangle-exclamation text-orange-400
+                                    {% elif category == 'info' %}fa-circle-exclamation text-amber-400
+                                    {% else %}fa-circle-check text-white{% endif %}"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                            <button onclick="this.parentElement.remove()" class="text-zinc-400 hover:text-white text-base">&times;</button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- PAGE BODY -->
+        <div class="flex-1 overflow-y-auto px-8 py-5">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- REAL-TIME LIVE ATTACK MONITORING SCRIPT (CẬP NHẬT THEO THỜI GIAN THỰC) -->
+    <script>
+    (function() {
+        const sid = '{{ sid }}' || new URLSearchParams(window.location.search).get('sid') || '';
+        const alertsContainer = document.getElementById('liveAlertsContainer');
+
+        async function fetchLiveStatus() {
+            try {
+                const res = await fetch('/api/live-status' + (sid ? ('?sid=' + encodeURIComponent(sid)) : ''));
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status !== 'success') return;
+
+                // 1. CẬP NHẬT CẢNH BÁO TẤN CÔNG REAL-TIME TRÊN HEADER BANNER
+                if (alertsContainer) {
+                    const attacks = data.attacks || [];
+                    const alerts = data.alerts || [];
+
+                    let bannerHtml = '';
+
+                    const quarantinedAttacks = attacks.filter(a => a.is_quarantined || a.failed_count >= a.threshold);
+                    const ongoingAttacks = attacks.filter(a => !a.is_quarantined && a.failed_count < a.threshold && a.failed_count > 0);
+
+                    if (alerts.length > 0 || quarantinedAttacks.length > 0) {
+                        const topAlert = (alerts.length > 0) ? alerts[0] : quarantinedAttacks[0];
+                        const uname = topAlert.username;
+                        const fCount = topAlert.failed_count;
+                        bannerHtml = `
+                        <div class="bg-red-950 border-b border-red-700/80 text-white px-8 py-3 flex items-center justify-between shadow-2xl animate-pulse">
+                            <div class="flex items-center space-x-3 text-xs md:text-sm font-bold text-red-200">
+                                <span class="p-1.5 bg-red-600 text-white rounded-lg inline-flex items-center justify-center">
+                                    <i class="fa-solid fa-triangle-exclamation text-base"></i>
+                                </span>
+                                <span>
+                                    <strong class="text-white uppercase tracking-wider">[CẢNH BÁO MỨC ĐỎ] ACTIVE DEFENSE:</strong> 
+                                    Phát hiện tấn công Brute-force trên tài khoản <code class="bg-red-900/80 text-white px-2 py-0.5 rounded border border-red-500 font-mono">${uname}</code> 
+                                    (<span class="text-amber-300 font-extrabold text-base">${fCount}</span> lần thất bại liên tiếp - ĐÃ VƯỢT NGƯỠNG 6 LẦN). Đã tự động kích hoạt cô lập sang <strong>VLAN 99 (Quarantine)</strong>!
+                                </span>
+                            </div>
+                            <a href="/users?filter=quarantine${sid ? ('&sid=' + encodeURIComponent(sid)) : ''}" class="text-xs font-extrabold uppercase px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all shadow flex items-center space-x-1.5">
+                                <i class="fa-solid fa-key text-[10px]"></i>
+                                <span>Mở khóa / Xử lý ngay &rarr;</span>
+                            </a>
+                        </div>`;
+                    } else if (ongoingAttacks.length > 0) {
+                        const topOngoing = ongoingAttacks[0];
+                        const uname = topOngoing.username;
+                        const fCount = topOngoing.failed_count;
+                        const threshold = topOngoing.threshold || 6;
+                        const percent = Math.min(100, Math.round((fCount / threshold) * 100));
+
+                        bannerHtml = `
+                        <div class="bg-amber-950/90 border-b border-amber-600/80 text-white px-8 py-2.5 flex items-center justify-between shadow-xl transition-all">
+                            <div class="flex items-center space-x-3 text-xs md:text-sm font-bold text-amber-200">
+                                <span class="p-1 bg-amber-500 text-black rounded-lg inline-flex items-center justify-center animate-bounce">
+                                    <i class="fa-solid fa-bolt-lightning text-sm"></i>
+                                </span>
+                                <span>
+                                    <strong class="text-amber-300 uppercase tracking-wider">[GIÁM SÁT THỜI GIAN THỰC]</strong> 
+                                    Đang phát hiện cuộc tấn công dò mật khẩu vào tài khoản: <code class="bg-black/60 text-white px-2 py-0.5 rounded border border-amber-500/50 font-mono font-bold">${uname}</code> 
+                                    &bull; Số lần tấn công: <span class="text-white font-black text-sm px-2 py-0.5 bg-orange-600 rounded-md font-mono">${fCount} / ${threshold} lần</span> 
+                                    <span class="text-zinc-400 font-normal text-xs">(Đạt 6 lần sẽ tự động cô lập sang VLAN 99)</span>
+                                </span>
+                            </div>
+                            <div class="w-32 bg-black/50 rounded-full h-2 border border-amber-600/50 overflow-hidden hidden sm:block">
+                                <div class="bg-gradient-to-r from-amber-400 to-red-500 h-full rounded-full transition-all duration-300" style="width: ${percent}%"></div>
+                            </div>
+                        </div>`;
+                    }
+
+                    alertsContainer.innerHTML = bannerHtml;
+                }
+
+                // 2. CẬP NHẬT CÁC THẺ THỐNG KÊ (INDEX & USERS PAGE)
+                const todayRejectsEl = document.getElementById('statTodayRejects');
+                if (todayRejectsEl && data.today_rejects !== undefined) {
+                    todayRejectsEl.textContent = data.today_rejects;
+                }
+
+                const quarantinedCountEl = document.getElementById('statQuarantinedCount');
+                if (quarantinedCountEl && data.quarantined_count !== undefined) {
+                    quarantinedCountEl.textContent = data.quarantined_count;
+                }
+
+                const statQuarantineCountUsers = document.getElementById('statQuarantineCount');
+                if (statQuarantineCountUsers && data.quarantined_count !== undefined) {
+                    statQuarantineCountUsers.textContent = data.quarantined_count;
+                }
+
+                const statActiveCountUsers = document.getElementById('statActiveCount');
+                if (statActiveCountUsers && data.active_count !== undefined) {
+                    statActiveCountUsers.textContent = data.active_count;
+                }
+
+                // 3. CẬP NHẬT TRẠNG THÁI HÀNG USER TRÊN BẢNG USERS TABLE (NẾU ĐANG Ở TRANG USERS)
+                if (data.users && Array.isArray(data.users)) {
+                    data.users.forEach(u => {
+                        const row = document.querySelector(`tr[data-uid="${u.uid.toLowerCase()}"]`);
+                        if (row) {
+                            const oldStatus = row.dataset.status;
+                            const newStatus = (u.group === 'quarantine' || u.status === 'quarantined') ? 'quarantined' : 'active';
+                            row.dataset.group = u.group.toLowerCase();
+                            row.dataset.vlan = u.vlan;
+                            row.dataset.status = newStatus;
+
+                            if (oldStatus !== newStatus && newStatus === 'quarantined') {
+                                const vlanCell = row.children[4];
+                                if (vlanCell) {
+                                    vlanCell.innerHTML = `<span class="px-2 py-0.5 rounded text-[10px] font-extrabold font-mono uppercase bg-red-500/20 text-red-400 border border-red-500/50">VLAN 99</span>`;
+                                }
+                                const groupCell = row.children[3];
+                                if (groupCell) {
+                                    groupCell.innerHTML = `<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-extrabold font-mono uppercase bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse">quarantine</span>`;
+                                }
+                                const statusCell = row.children[5];
+                                if (statusCell) {
+                                    statusCell.innerHTML = `<span class="inline-flex items-center text-red-400 font-extrabold text-[11px] animate-pulse"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Bị cách ly (VLAN 99)</span>`;
+                                }
+                                const actionCell = row.children[6];
+                                if (actionCell) {
+                                    actionCell.innerHTML = `
+                                    <button type="button" 
+                                        onclick="openUnlockModal('${u.uid}', '${row.dataset.rawCn || u.uid}', '${u.group}')"
+                                        title="Mở khóa tài khoản và khôi phục quyền truy cập" 
+                                        class="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm transition-all inline-flex items-center">
+                                        <i class="fa-solid fa-key mr-1"></i> Mở khóa
+                                    </button>
+                                    <form method="POST" action="/users/delete/${encodeURIComponent(u.uid)}" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản ${u.uid} khỏi LDAP?')">
+                                        <input type="hidden" name="sid" value="${sid}">
+                                        <button type="submit" title="Xóa tài khoản vĩnh viễn" 
+                                            class="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>`;
+                                }
+                            } else {
+                                const ongoingAttack = (data.attacks || []).find(a => a.username.toLowerCase() === u.uid.toLowerCase() && !a.is_quarantined);
+                                const statusCell = row.children[5];
+                                if (ongoingAttack && newStatus !== 'quarantined') {
+                                    if (statusCell) {
+                                        statusCell.innerHTML = `<span class="inline-flex items-center text-amber-400 font-extrabold text-[11px] animate-pulse"><i class="fa-solid fa-bolt-lightning mr-1.5 text-amber-400"></i> Đang bị tấn công (${ongoingAttack.failed_count}/6 lần)</span>`;
+                                    }
+                                } else if (newStatus === 'active') {
+                                    if (statusCell && (statusCell.textContent.includes('Đang bị tấn công') || statusCell.textContent.includes('Bị cách ly'))) {
+                                        statusCell.innerHTML = `<span class="inline-flex items-center text-zinc-300 font-medium text-[11px]"><i class="fa-solid fa-circle-check mr-1.5 text-emerald-400"></i> Hoạt động</span>`;
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (err) {}
+        }
+
+        setInterval(fetchLiveStatus, 1500);
+        fetchLiveStatus();
+    })();
+    </script>
+</body>
+</html>

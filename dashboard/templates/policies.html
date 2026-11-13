@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Ma trận Chính sách Dynamic VLAN{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- HEADER -->
+    <div class="flex items-center justify-between pb-2 border-b border-zinc-900">
+        <div>
+            <h2 class="text-2xl font-black text-white tracking-wider">MA TRẬN CHÍNH SÁCH PHÂN QUYỀN MẠNG (POLICY MATRIX)</h2>
+            <p class="text-xs text-zinc-400 mt-1 font-mono">Cấu hình ánh xạ giữa Nhóm LDAP và Phân đoạn VLAN động (RFC 2868 / RFC 3580) cấp phát bởi FreeRADIUS</p>
+        </div>
+    </div>
+
+    <!-- POLICIES GRID (PHÂN CẤP MỨC ĐỘ CHÚ Ý: ĐỎ, CAM, VÀNG, TRẮNG) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for p in policies %}
+        <div class="rounded-2xl border shadow-xl p-6 flex flex-col justify-between transition-all
+            {% if p.group_name == 'quarantine' %}border-red-500/50 bg-[#140f10] hover:border-red-500
+            {% elif p.group_name == 'quantri' %}border-orange-500/40 bg-[#15120f] hover:border-orange-500
+            {% elif p.group_name == 'giangvien' %}border-amber-500/40 bg-[#15140f] hover:border-amber-500
+            {% else %}border-zinc-800 bg-[#121215] hover:border-zinc-700{% endif %}">
+            <div>
+                <div class="flex items-center justify-between pb-3 border-b border-zinc-800/80">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center font-black font-mono text-base shadow-lg
+                            {% if p.group_name == 'quarantine' %}bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse
+                            {% elif p.group_name == 'quantri' %}bg-orange-500/20 text-orange-400 border border-orange-500/40
+                            {% elif p.group_name == 'giangvien' %}bg-amber-500/20 text-amber-300 border border-amber-500/40
+                            {% else %}bg-zinc-800 text-white border border-zinc-700{% endif %}">
+                            {{ p.vlan_id }}
+                        </div>
+                        <div>
+                            <h3 class="font-extrabold text-white text-base leading-tight">{{ p.vlan_name }}</h3>
+                            <p class="text-xs text-zinc-400 font-mono mt-0.5">Nhóm LDAP: <span class="font-bold text-white">{{ p.group_name }}</span></p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] uppercase font-extrabold font-mono px-2.5 py-1 rounded-md
+                        {% if p.priority >= 1000 %}bg-red-950 text-red-400 border border-red-700/80
+                        {% elif p.priority >= 100 %}bg-orange-950 text-orange-300 border border-orange-700/80
+                        {% else %}bg-zinc-900 text-zinc-300 border border-zinc-700{% endif %}">
+                        Độ ưu tiên: {{ p.priority }}
+                    </span>
+                </div>
+
+                <div class="mt-4 space-y-2.5 text-xs font-mono">
+                    <div class="flex justify-between py-1 border-b border-zinc-800/50">
+                        <span class="text-zinc-400 font-sans">Dải địa chỉ IP (CIDR):</span>
+                        <span class="font-bold text-white">{{ p.subnet_cidr }}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-zinc-800/50">
+                        <span class="text-zinc-400 font-sans">Thời lượng phiên (Session-Timeout):</span>
+                        <span class="font-bold text-white">{{ p.session_timeout }}s ({{ (p.session_timeout/3600)|round(1) }}h)</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-zinc-800/50">
+                        <span class="text-zinc-400 font-sans">Thời gian rảnh tối đa (Idle-Timeout):</span>
+                        <span class="font-bold text-white">{{ p.idle_timeout }}s</span>
+                    </div>
+                    <div class="pt-2">
+                        <span class="text-zinc-400 font-sans block mb-1 text-[11px] uppercase tracking-wider">Mô tả đặc quyền mạng:</span>
+                        <p class="text-zinc-300 text-xs leading-relaxed bg-black/60 p-3 rounded-xl border border-zinc-800 font-sans">{{ p.description }}</p>
+                    </div>
+                </div>
+            </div>
+
+            {% if current_role == 'admin' %}
+            <div class="mt-5 pt-4 border-t border-zinc-800/80 flex justify-end">
+                <button onclick="openEditModal('{{ p.group_name }}', '{{ p.vlan_id }}', '{{ p.vlan_name }}', '{{ p.session_timeout }}', '{{ p.idle_timeout }}')"
+                    class="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold border border-zinc-700 transition-all flex items-center space-x-2 shadow-sm">
+                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                    <span>Hiệu chỉnh VLAN</span>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- EDIT POLICY MODAL -->
+{% if current_role == 'admin' %}
+<div id="modalEditPolicy" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-[#121215] rounded-2xl shadow-2xl max-w-md w-full border border-zinc-800 overflow-hidden">
+        <div class="bg-black px-6 py-4 text-white flex items-center justify-between border-b border-zinc-800">
+            <h3 class="font-extrabold text-sm tracking-wider uppercase flex items-center space-x-2">
+                <i class="fa-solid fa-sliders text-white"></i>
+                <span>Cập nhật Chính sách Dynamic VLAN</span>
+            </h3>
+            <button onclick="document.getElementById('modalEditPolicy').classList.add('hidden')" class="text-zinc-400 hover:text-white text-xl leading-none">&times;</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('policy_update') }}" class="p-6 space-y-4 bg-[#121215]">
+            <input type="hidden" name="sid" value="{{ sid }}">
+            <input type="hidden" name="group_name" id="edit_group_name">
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Nhóm LDAP</label>
+                <input type="text" id="display_group_name" disabled class="w-full px-3 py-2 bg-black border border-zinc-800 rounded-xl text-xs font-mono font-bold text-zinc-400">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Tên phân đoạn VLAN *</label>
+                <input type="text" name="vlan_name" id="edit_vlan_name" required class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-sans">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Mã VLAN ID gán động (1 - 4094) *</label>
+                <input type="number" name="vlan_id" id="edit_vlan_id" min="1" max="4094" required class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono font-bold">
+                <!-- Chú ý mức Cam / Vàng: Có hiệu lực tức thì ở lần xác thực tiếp theo -->
+                <span class="text-[10px] text-amber-300 font-mono mt-1 block flex items-center space-x-1">
+                    <i class="fa-solid fa-bolt text-[9px]"></i>
+                    <span>Tự động cập nhật bảng policy_matrix và có hiệu lực ngay ở lần xác thực tiếp theo.</span>
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Session-Timeout (s)</label>
+                    <input type="number" name="session_timeout" id="edit_session_timeout" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Idle-Timeout (s)</label>
+                    <input type="number" name="idle_timeout" id="edit_idle_timeout" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-800 flex items-center justify-end space-x-2">
+                <button type="button" onclick="document.getElementById('modalEditPolicy').classList.add('hidden')" class="px-4 py-2 border border-zinc-700 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-900">Hủy</button>
+                <button type="submit" class="px-5 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-black uppercase tracking-wider shadow-lg">Lưu Chính Sách</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditModal(group, vlan, name, sess, idle) {
+    document.getElementById('edit_group_name').value = group;
+    document.getElementById('display_group_name').value = group;
+    document.getElementById('edit_vlan_id').value = vlan;
+    document.getElementById('edit_vlan_name').value = name;
+    document.getElementById('edit_session_timeout').value = sess;
+    document.getElementById('edit_idle_timeout').value = idle;
+    document.getElementById('modalEditPolicy').classList.remove('hidden');
+}
+</script>
+{% endif %}
+{% endblock %}

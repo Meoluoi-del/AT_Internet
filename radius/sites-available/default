@@ -1,0 +1,152 @@
+server default {
+listen {
+	type = auth
+	ipaddr = *
+	port = 1812
+	limit {
+		max_connections = 16
+		lifetime = 0
+		idle_timeout = 30
+	}
+}
+
+listen {
+	ipaddr = *
+	port = 1813
+	type = acct
+	limit {
+		max_connections = 16
+		lifetime = 0
+		idle_timeout = 30
+	}
+}
+
+authorize {
+	filter_username
+	preprocess
+	chap
+	mschap
+	digest
+	suffix
+	eap {
+		ok = return
+	}
+	files
+	-sql
+	ldap
+
+	# ==========================================================
+	# DYNAMIC VLAN ASSIGNMENT (RFC 2868 / RFC 3580)
+	# Quy tắc ưu tiên: quarantine luôn ghi đè mọi quyền khác!
+	# ==========================================================
+	if (LDAP-Group == "quarantine") {
+		update reply {
+			Tunnel-Type := VLAN
+			Tunnel-Medium-Type := IEEE-802
+			Tunnel-Private-Group-Id := "%{%{sql:SELECT vlan_id FROM policy_matrix WHERE group_name = 'quarantine' AND is_active = 1 LIMIT 1}:-99}"
+			Session-Timeout := 1800
+			Idle-Timeout := 300
+			Termination-Action := 1
+		}
+	}
+	elsif (LDAP-Group == "quantri") {
+		update reply {
+			Tunnel-Type := VLAN
+			Tunnel-Medium-Type := IEEE-802
+			Tunnel-Private-Group-Id := "%{%{sql:SELECT vlan_id FROM policy_matrix WHERE group_name = 'quantri' AND is_active = 1 LIMIT 1}:-10}"
+			Session-Timeout := 7200
+			Idle-Timeout := 900
+			Termination-Action := 1
+		}
+	}
+	elsif (LDAP-Group == "giangvien") {
+		update reply {
+			Tunnel-Type := VLAN
+			Tunnel-Medium-Type := IEEE-802
+			Tunnel-Private-Group-Id := "%{%{sql:SELECT vlan_id FROM policy_matrix WHERE group_name = 'giangvien' AND is_active = 1 LIMIT 1}:-30}"
+			Session-Timeout := 28800
+			Idle-Timeout := 1800
+			Termination-Action := 1
+		}
+	}
+	elsif (LDAP-Group == "sinhvien") {
+		update reply {
+			Tunnel-Type := VLAN
+			Tunnel-Medium-Type := IEEE-802
+			Tunnel-Private-Group-Id := "%{%{sql:SELECT vlan_id FROM policy_matrix WHERE group_name = 'sinhvien' AND is_active = 1 LIMIT 1}:-20}"
+			Session-Timeout := 14400
+			Idle-Timeout := 600
+			Termination-Action := 1
+		}
+	}
+	else {
+		update reply {
+			Tunnel-Type := VLAN
+			Tunnel-Medium-Type := IEEE-802
+			Tunnel-Private-Group-Id := "99"
+			Session-Timeout := 1800
+			Idle-Timeout := 300
+			Termination-Action := 1
+		}
+	}
+
+	pap
+}
+
+authenticate {
+	Auth-Type PAP {
+		pap
+	}
+	Auth-Type CHAP {
+		chap
+	}
+	Auth-Type MS-CHAP {
+		mschap
+	}
+	Auth-Type LDAP {
+		ldap
+	}
+	eap
+}
+
+preacct {
+	preprocess
+	acct_unique
+	suffix
+	files
+}
+
+accounting {
+	detail
+	-sql
+	exec
+	attr_filter.accounting_response
+}
+
+session {
+	radutmp
+	-sql
+}
+
+post-auth {
+	update {
+		&reply: += &session-state:
+	}
+	-sql
+	exec
+	remove_reply_message_if_eap
+	Post-Auth-Type REJECT {
+		-sql
+		attr_filter.access_reject
+		eap
+		remove_reply_message_if_eap
+	}
+}
+
+pre-proxy {
+}
+
+post-proxy {
+	eap
+}
+}

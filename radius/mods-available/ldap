@@ -1,0 +1,52 @@
+ldap {
+	server = 'nac_ldap'
+	port = 389
+	identity = 'cn=radius-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn'
+	password = 'RadiusSecret123!'
+	base_dn = 'dc=attt,dc=ptit,dc=edu,dc=vn'
+
+	update {
+		control:Password-With-Header	+= 'userPassword'
+		control:			+= 'radiusControlAttribute'
+		request:			+= 'radiusRequestAttribute'
+		reply:				+= 'radiusReplyAttribute'
+	}
+
+	user {
+		base_dn = "ou=users,dc=attt,dc=ptit,dc=edu,dc=vn"
+		filter = "(uid=%{%{Stripped-User-Name}:-%{User-Name}})"
+		sasl {
+		}
+	}
+
+	group {
+		base_dn = "ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn"
+		filter = "(objectClass=groupOfNames)"
+		membership_filter = "(&(objectClass=groupOfNames)(member=%{control:LDAP-UserDn}))"
+		membership_attribute = "cn"
+	}
+
+	options {
+		chase_referrals = no
+		rebind = yes
+		res_timeout = 10
+		srv_timelimit = 5
+		net_timeout = 5
+		idle = 60
+		probes = 3
+		interval = 3
+		ldap_debug = 0x0000
+	}
+
+	pool {
+		start = 5
+		min = 3
+		max = 10
+		spare = 3
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+		max_retries = 5
+	}
+}
