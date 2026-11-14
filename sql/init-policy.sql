@@ -232,7 +232,10 @@ CREATE TABLE IF NOT EXISTS user_mfa (
     secret_key VARCHAR(64) NOT NULL,
     is_enabled TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used_at DATETIME NULL
+    last_used_at DATETIME NULL,
+    failed_otp_attempts INT DEFAULT 0,
+    otp_locked_until DATETIME NULL,
+    last_verified_step BIGINT NULL
 ) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
 
 -- ====================================================================

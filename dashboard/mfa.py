@@ -24,21 +24,38 @@ def get_totp_code(secret_b32: str, for_time: float = None, interval: int = 30, d
     binary = (struct.unpack(">I", digest[offset:offset+4])[0] & 0x7FFFFFFF) % (10 ** digits)
     return f"{binary:0{digits}d}"
 
-def verify_totp(secret_b32: str, code: str, window: int = 1, interval: int = 30) -> bool:
-    """Kiểm tra mã TOTP trong cửa sổ dung sai (+/- 30 giây) chống lệch đồng hồ."""
+def verify_totp_detailed(secret_b32: str, code: str, window: int = 1, interval: int = 30, last_verified_step: int = None) -> tuple:
+    """
+    Kiểm tra mã TOTP trong cửa sổ dung sai (+/- 30 giây) và chống dùng lại mã (RFC 6238 Section 5.2).
+    Returns: (is_valid: bool, reason: str, matched_step: int or None)
+        reason có thể là:
+          - 'OK': Mã hợp lệ và chưa từng được sử dụng.
+          - 'REPLAY': Mã đúng nhưng đã được sử dụng trước đó (chống Replay Attack).
+          - 'INVALID': Mã không khớp hoặc không đúng định dạng.
+    """
     if not code or len(code.strip()) != 6:
-        return False
+        return False, 'INVALID', None
     code = code.strip()
     now = time.time()
     for step in range(-window, window + 1):
         target_time = now + (step * interval)
+        step_counter = int(target_time // interval)
         try:
             expected_code = get_totp_code(secret_b32, target_time, interval)
             if hmac.compare_digest(expected_code, code):
-                return True
+                # Kiểm tra chống dùng lại mã (Replay Protection):
+                # Nếu bước thời gian đã nhỏ hơn hoặc bằng bước đã xác thực lần gần nhất -> từ chối
+                if last_verified_step is not None and step_counter <= int(last_verified_step):
+                    return False, 'REPLAY', step_counter
+                return True, 'OK', step_counter
         except Exception:
             continue
-    return False
+    return False, 'INVALID', None
+
+def verify_totp(secret_b32: str, code: str, window: int = 1, interval: int = 30, last_verified_step: int = None) -> bool:
+    """Kiểm tra mã TOTP (wrapper trả về True/False)."""
+    valid, _, _ = verify_totp_detailed(secret_b32, code, window, interval, last_verified_step)
+    return valid
 
 def get_totp_uri(secret_b32: str, username: str, issuer: str = "PTITHCM NAC") -> str:
     """Tạo chuỗi URI chuẩn otpauth:// quét bằng Google/Microsoft Authenticator."""

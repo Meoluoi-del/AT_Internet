@@ -186,6 +186,105 @@ class DBManager:
             conn.close()
 
     @staticmethod
+    def check_mfa_lock(username: str) -> dict:
+        """Kiểm tra xem tài khoản có đang bị tạm khóa xác thực MFA hay không."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT failed_otp_attempts, otp_locked_until, 
+                           TIMESTAMPDIFF(SECOND, NOW(), otp_locked_until) AS seconds_left
+                    FROM user_mfa WHERE username = %s
+                """, (username,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'is_locked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                seconds_left = row.get('seconds_left')
+                if seconds_left is not None and seconds_left > 0:
+                    minutes_left = max(1, (seconds_left + 59) // 60)
+                    return {
+                        'is_locked': True,
+                        'seconds_left': seconds_left,
+                        'minutes_left': minutes_left,
+                        'failed_attempts': row.get('failed_otp_attempts', 0)
+                    }
+                elif row.get('otp_locked_until') is not None:
+                    # Thời gian khóa 10 phút đã hết -> tự động giải phóng khóa
+                    cursor.execute("""
+                        UPDATE user_mfa 
+                        SET failed_otp_attempts = 0, otp_locked_until = NULL 
+                        WHERE username = %s
+                    """, (username,))
+                    return {'is_locked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                return {
+                    'is_locked': False,
+                    'seconds_left': 0,
+                    'minutes_left': 0,
+                    'failed_attempts': row.get('failed_otp_attempts', 0) or 0
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_mfa_failed_attempt(username: str, max_attempts: int = 3, lock_minutes: int = 10) -> dict:
+        """Ghi nhận lần nhập sai mã OTP. Nếu sai >= max_attempts (3 lần) thì khóa lock_minutes (10 phút)."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT failed_otp_attempts FROM user_mfa WHERE username = %s", (username,))
+                row = cursor.fetchone()
+                current_fails = (row['failed_otp_attempts'] or 0) if row else 0
+                new_fails = current_fails + 1
+                
+                if new_fails >= max_attempts:
+                    cursor.execute("""
+                        UPDATE user_mfa 
+                        SET failed_otp_attempts = %s,
+                            otp_locked_until = DATE_ADD(NOW(), INTERVAL %s MINUTE)
+                        WHERE username = %s
+                    """, (new_fails, lock_minutes, username))
+                    return {
+                        'is_locked': True,
+                        'failed_attempts': new_fails,
+                        'remaining_attempts': 0,
+                        'lock_minutes': lock_minutes
+                    }
+                else:
+                    cursor.execute("""
+                        UPDATE user_mfa 
+                        SET failed_otp_attempts = %s 
+                        WHERE username = %s
+                    """, (new_fails, username))
+                    return {
+                        'is_locked': False,
+                        'failed_attempts': new_fails,
+                        'remaining_attempts': max_attempts - new_fails,
+                        'lock_minutes': lock_minutes
+                    }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_mfa_success(username: str, matched_step: int = None):
+        """Xác thực MFA thành công: reset số lần sai, xóa khóa, cập nhật last_verified_step để chống Replay."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE user_mfa 
+                    SET failed_otp_attempts = 0,
+                        otp_locked_until = NULL,
+                        last_used_at = NOW(),
+                        last_verified_step = COALESCE(%s, last_verified_step)
+                    WHERE username = %s
+                """, (matched_step, username))
+                return True
+        finally:
+            conn.close()
+
+    @staticmethod
     def record_mfa_use(username: str):
         conn = get_db_connection()
         try:

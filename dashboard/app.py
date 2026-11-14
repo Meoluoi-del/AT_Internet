@@ -9,7 +9,7 @@ from config import Config
 from ldap_client import LDAPClient
 from models import DBManager, get_db_connection
 from detector import detector_instance
-from mfa import generate_secret, get_totp_code, verify_totp, get_totp_uri
+from mfa import generate_secret, get_totp_code, verify_totp, verify_totp_detailed, get_totp_uri
 from sso import create_jwt, verify_jwt
 
 app = Flask(__name__)
@@ -46,17 +46,13 @@ class TabSessionInterface(SessionInterface):
     def open_session(self, app, request):
         sid = self._extract_sid(request)
         if not sid:
-            logged_in_sessions = [s for s in self.store.values() if s.get('logged_in')]
-            if len(logged_in_sessions) == 1:
-                return logged_in_sessions[0]
+            # Không có sid -> luôn tạo session mới rỗng (chưa đăng nhập)
             sid = secrets.token_hex(6)
             s = TabSession(sid)
             self.store[sid] = s
             return s
         if sid not in self.store:
-            logged_in_sessions = [s for s in self.store.values() if s.get('logged_in')]
-            if len(logged_in_sessions) == 1:
-                return logged_in_sessions[0]
+            # sid không tồn tại trong store -> tạo session mới rỗng, không thừa kế
             self.store[sid] = TabSession(sid)
         return self.store[sid]
 
@@ -86,11 +82,7 @@ def handle_tab_session():
         sid = sid.split('?')[0].split('&')[0].strip()
 
     if not sid:
-        logged_in_sessions = [s for s in app.session_interface.store.values() if s.get('logged_in')]
-        if len(logged_in_sessions) == 1:
-            g.sid = logged_in_sessions[0].sid
-            return
-
+        # Không có sid -> tạo sid mới, không bao giờ thừa kế session người khác
         if request.method == 'GET':
             new_sid = secrets.token_hex(6)
             args = request.args.to_dict()
@@ -172,6 +164,11 @@ def login():
             # 1. Kiểm tra trạng thái Xác thực đa nhân tố (MFA / 2FA)
             mfa_record = DBManager.get_user_mfa(username)
             if mfa_record and mfa_record.get('is_enabled') == 1:
+                lock_info = DBManager.check_mfa_lock(username)
+                if lock_info['is_locked']:
+                    flash(f'Tài khoản {username} đang bị tạm khóa xác thực MFA do nhập sai quá 3 lần. Vui lòng thử lại sau {lock_info["minutes_left"]} phút!', 'danger')
+                    return redirect(url_for('login'))
+
                 session['mfa_pending'] = True
                 session['mfa_username'] = username
                 session['mfa_role'] = ADMIN_USERS[username]['role']
@@ -216,9 +213,32 @@ def mfa_verify():
         session.pop('mfa_pending', None)
         return redirect(url_for('login'))
 
+    lock_info = DBManager.check_mfa_lock(username)
+
     if request.method == 'POST':
+        if lock_info['is_locked']:
+            flash(f"Tài khoản đang bị tạm khóa xác thực MFA do nhập sai quá 3 lần! Vui lòng thử lại sau {lock_info['minutes_left']} phút.", 'danger')
+            return render_template('mfa_verify.html', username=username, lock_info=lock_info)
+
         code = request.form.get('code', '').strip()
-        if verify_totp(mfa_record['secret_key'], code):
+        last_step = mfa_record.get('last_verified_step')
+        is_valid, reason, matched_step = verify_totp_detailed(
+            mfa_record['secret_key'], code, last_verified_step=last_step
+        )
+
+        if reason == 'REPLAY':
+            # Chống dùng lại mã (Replay Protection theo RFC 6238)
+            DBManager.add_audit_log(
+                actor=username,
+                action="MFA_REPLAY_ATTEMPT",
+                target="SYSTEM",
+                old_val=f"Replayed OTP code: {code}",
+                ip=request.remote_addr
+            )
+            flash('Mã xác thực này đã được sử dụng trước đó! Vui lòng đợi mã mới (chu kỳ 30 giây tiếp theo) trên ứng dụng Authenticator.', 'warning')
+            return render_template('mfa_verify.html', username=username, lock_info=lock_info)
+
+        elif is_valid:
             # Xác thực 2 lớp thành công!
             role = session.get('mfa_role', 'admin')
             display_name = session.get('mfa_name', username)
@@ -235,12 +255,13 @@ def mfa_verify():
             session['role'] = role
             session['display_name'] = display_name
             
-            DBManager.record_mfa_use(username)
+            # Ghi nhận thành công: reset số lần sai, xóa khóa, lưu bước thời gian vừa dùng
+            DBManager.record_mfa_success(username, matched_step)
             DBManager.add_audit_log(
                 actor=username,
                 action="MFA_LOGIN_SUCCESS",
                 target="SYSTEM",
-                new_value=f"Xác thực MFA thành công qua mã TOTP 6 số cho {username}",
+                new_value=f"Xác thực MFA thành công qua mã TOTP 6 số cho {username} (TimeStep: {matched_step})",
                 ip=request.remote_addr
             )
             flash(f'Xác thực 2 lớp (MFA) thành công! Chào mừng {display_name}.', 'success')
@@ -248,16 +269,34 @@ def mfa_verify():
                 return redirect(next_url)
             return redirect(url_for('index'))
         else:
-            DBManager.add_audit_log(
-                actor=username,
-                action="MFA_LOGIN_FAILED",
-                target="SYSTEM",
-                old_val="Invalid TOTP",
-                ip=request.remote_addr
-            )
-            flash('Mã xác thực 6 chữ số không đúng hoặc đã hết hạn! Vui lòng thử lại mã mới trên Authenticator.', 'danger')
+            # Mã không hợp lệ -> Ghi nhận lần nhập sai
+            fail_info = DBManager.record_mfa_failed_attempt(username, max_attempts=3, lock_minutes=10)
+            if fail_info['is_locked']:
+                DBManager.add_audit_log(
+                    actor=username,
+                    action="MFA_LOCKED",
+                    target="SYSTEM",
+                    old_val=f"Nhập sai {fail_info['failed_attempts']} lần liên tiếp",
+                    new_value=f"Khóa MFA trong {fail_info['lock_minutes']} phút",
+                    ip=request.remote_addr
+                )
+                flash(f"Bạn đã nhập sai mã OTP quá 3 lần! Tài khoản bị tạm khóa xác thực MFA trong {fail_info['lock_minutes']} phút.", 'danger')
+            else:
+                rem = fail_info['remaining_attempts']
+                DBManager.add_audit_log(
+                    actor=username,
+                    action="MFA_LOGIN_FAILED",
+                    target="SYSTEM",
+                    old_val="Invalid TOTP",
+                    new_value=f"Lần sai thứ {fail_info['failed_attempts']}/3. Còn {rem} lần thử.",
+                    ip=request.remote_addr
+                )
+                flash(f"Mã xác thực 6 chữ số không đúng! Bạn còn {rem} lần thử trước khi tài khoản bị khóa 10 phút.", 'danger')
 
-    return render_template('mfa_verify.html', username=username)
+            lock_info = DBManager.check_mfa_lock(username)
+            return render_template('mfa_verify.html', username=username, lock_info=lock_info)
+
+    return render_template('mfa_verify.html', username=username, lock_info=lock_info)
 
 @app.route('/mfa/setup', methods=['GET', 'POST'])
 @login_required
@@ -271,8 +310,10 @@ def mfa_setup():
         if action == 'enable':
             code = request.form.get('code', '').strip()
             secret = request.form.get('secret_key', '').strip()
-            if verify_totp(secret, code):
+            is_valid, reason, matched_step = verify_totp_detailed(secret, code)
+            if is_valid:
                 DBManager.save_user_mfa(username, secret, is_enabled=1)
+                DBManager.record_mfa_success(username, matched_step)
                 DBManager.add_audit_log(
                     actor=username,
                     action="ENABLE_MFA",
