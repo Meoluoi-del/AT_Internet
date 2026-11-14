@@ -155,13 +155,48 @@ def new_tab():
     return redirect(url_for('login', sid=new_sid))
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    client_ip = request.remote_addr or '127.0.0.1'
+
+    # 1. Kiểm tra xem Địa chỉ IP có đang bị tạm chặn hay không
+    ip_lock = DBManager.check_dashboard_ip_lock(client_ip)
+    if ip_lock['is_blocked']:
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            DBManager.add_audit_log(
+                actor=client_ip,
+                action="DASHBOARD_IP_BLOCKED",
+                target="DASHBOARD",
+                old_val=f"Attempted username: {username}",
+                new_val=f"IP đang bị chặn. Còn {ip_lock['minutes_left']} phút.",
+                ip=client_ip
+            )
+        flash(f'Địa chỉ IP của bạn ({client_ip}) đang bị tạm chặn do vi phạm đăng nhập quá 5 lần. Vui lòng thử lại sau {ip_lock["minutes_left"]} phút!', 'danger')
+        return render_template('login.html', is_ip_blocked=True, lock_minutes=ip_lock['minutes_left'])
+
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
 
-        # Check local dashboard admin/auditor accounts
+        # 2. Kiểm tra xem Tài khoản username có đang bị tạm khóa hay không
+        acc_lock = DBManager.check_dashboard_account_lock(username)
+        if acc_lock['is_locked']:
+            DBManager.add_audit_log(
+                actor=username or "UNKNOWN",
+                action="DASHBOARD_ACCOUNT_BLOCKED",
+                target="DASHBOARD",
+                old_val=f"IP: {client_ip}",
+                new_val=f"Tài khoản đang bị khóa. Còn {acc_lock['minutes_left']} phút.",
+                ip=client_ip
+            )
+            flash(f'Tài khoản {username} đang bị tạm khóa. Vui lòng thử lại sau {acc_lock["minutes_left"]} phút!', 'danger')
+            return render_template('login.html', is_account_locked=True, lock_minutes=acc_lock['minutes_left'])
+
+        # 3. Kiểm tra thông tin xác thực
         if username in ADMIN_USERS and ADMIN_USERS[username]['password'] == password:
-            # 1. Kiểm tra trạng thái Xác thực đa nhân tố (MFA / 2FA)
+            # Đăng nhập hợp lệ -> Giải phóng số lần sai của IP và tài khoản
+            DBManager.record_dashboard_login_success(username, client_ip)
+
+            # Kiểm tra trạng thái Xác thực đa nhân tố (MFA / 2FA)
             mfa_record = DBManager.get_user_mfa(username)
             if mfa_record and mfa_record.get('is_enabled') == 1:
                 lock_info = DBManager.check_mfa_lock(username)
@@ -188,7 +223,7 @@ def login():
                 action="DASHBOARD_LOGIN",
                 target="SYSTEM",
                 new_value=f"Login success as {session['role']}",
-                ip=request.remote_addr
+                ip=client_ip
             )
             flash(f'Chào mừng {session["display_name"]} đăng nhập thành công!', 'success')
             next_url = request.args.get('next')
@@ -196,7 +231,39 @@ def login():
                 return redirect(next_url)
             return redirect(url_for('index'))
         else:
-            flash('Sai tên đăng nhập hoặc mật khẩu! Vui lòng thử lại.', 'danger')
+            # Nhập sai mật khẩu hoặc tên đăng nhập -> Ghi nhận thất bại và kích hoạt khóa kép khi đạt 5 lần
+            fail_info = DBManager.record_dashboard_login_failure(username, client_ip, max_attempts=5, lock_minutes=60)
+            
+            if fail_info['is_locked']:
+                # Lần thứ 5: Khóa cả Tài khoản và Địa chỉ IP trong 1 tiếng (60 phút)
+                DBManager.add_audit_log(
+                    actor=username or "UNKNOWN",
+                    action="DASHBOARD_ACCOUNT_LOCKED",
+                    target="DASHBOARD",
+                    old_value=f"Nhập sai {fail_info['failed_attempts']} lần liên tiếp từ IP {client_ip}",
+                    new_value=f"Khóa tài khoản {username} trong 60 phút",
+                    ip=client_ip
+                )
+                DBManager.add_audit_log(
+                    actor=client_ip,
+                    action="DASHBOARD_IP_BLOCKED",
+                    target="DASHBOARD",
+                    old_value=f"Thử dò tài khoản: {username}",
+                    new_value=f"Chặn địa chỉ IP {client_ip} trong 60 phút",
+                    ip=client_ip
+                )
+                flash('Bạn đã nhập sai mật khẩu quá 5 lần! Tài khoản và địa chỉ IP của bạn đã bị khóa trong 1 tiếng.', 'danger')
+            else:
+                rem = fail_info['remaining_attempts']
+                DBManager.add_audit_log(
+                    actor=username or "UNKNOWN",
+                    action="DASHBOARD_LOGIN_FAILED",
+                    target="DASHBOARD",
+                    old_value=f"Lần sai thứ {fail_info['failed_attempts']}/5",
+                    new_value=f"Còn {rem} lần thử trước khi bị khóa",
+                    ip=client_ip
+                )
+                flash(f'Sai tên đăng nhập hoặc mật khẩu! Bạn còn {rem} lần thử trước khi tài khoản bị khóa.', 'danger')
 
     return render_template('login.html')
 

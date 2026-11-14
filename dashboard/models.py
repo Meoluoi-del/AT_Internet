@@ -295,6 +295,196 @@ class DBManager:
             conn.close()
 
     # ====================================================================
+    # DASHBOARD LOGIN BRUTE-FORCE PROTECTION (KHÓA KÉP TÀI KHOẢN & CHẶN IP)
+    # ====================================================================
+    @staticmethod
+    def check_dashboard_ip_lock(ip_address: str) -> dict:
+        """Kiểm tra xem địa chỉ IP có đang bị tạm chặn đăng nhập hay không."""
+        if not ip_address:
+            return {'is_blocked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT failed_attempts, blocked_until, 
+                           TIMESTAMPDIFF(SECOND, NOW(), blocked_until) AS seconds_left
+                    FROM dashboard_ip_lockouts WHERE ip_address = %s
+                """, (ip_address,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'is_blocked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                seconds_left = row.get('seconds_left')
+                if seconds_left is not None and seconds_left > 0:
+                    minutes_left = max(1, (seconds_left + 59) // 60)
+                    return {
+                        'is_blocked': True,
+                        'seconds_left': seconds_left,
+                        'minutes_left': minutes_left,
+                        'failed_attempts': row.get('failed_attempts', 0)
+                    }
+                elif row.get('blocked_until') is not None:
+                    # Hết thời gian chặn -> Tự động giải phóng
+                    cursor.execute("""
+                        UPDATE dashboard_ip_lockouts 
+                        SET failed_attempts = 0, blocked_until = NULL 
+                        WHERE ip_address = %s
+                    """, (ip_address,))
+                    return {'is_blocked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                return {
+                    'is_blocked': False,
+                    'seconds_left': 0,
+                    'minutes_left': 0,
+                    'failed_attempts': row.get('failed_attempts', 0) or 0
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def check_dashboard_account_lock(username: str) -> dict:
+        """Kiểm tra xem tài khoản quản trị có đang bị tạm khóa hay không."""
+        if not username:
+            return {'is_locked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT failed_attempts, locked_until, 
+                           TIMESTAMPDIFF(SECOND, NOW(), locked_until) AS seconds_left
+                    FROM dashboard_account_lockouts WHERE username = %s
+                """, (username,))
+                row = cursor.fetchone()
+                if not row:
+                    return {'is_locked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                seconds_left = row.get('seconds_left')
+                if seconds_left is not None and seconds_left > 0:
+                    minutes_left = max(1, (seconds_left + 59) // 60)
+                    return {
+                        'is_locked': True,
+                        'seconds_left': seconds_left,
+                        'minutes_left': minutes_left,
+                        'failed_attempts': row.get('failed_attempts', 0)
+                    }
+                elif row.get('locked_until') is not None:
+                    # Hết thời gian khóa -> Tự động giải phóng
+                    cursor.execute("""
+                        UPDATE dashboard_account_lockouts 
+                        SET failed_attempts = 0, locked_until = NULL 
+                        WHERE username = %s
+                    """, (username,))
+                    return {'is_locked': False, 'seconds_left': 0, 'minutes_left': 0, 'failed_attempts': 0}
+                
+                return {
+                    'is_locked': False,
+                    'seconds_left': 0,
+                    'minutes_left': 0,
+                    'failed_attempts': row.get('failed_attempts', 0) or 0
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_dashboard_login_failure(username: str, ip_address: str, max_attempts: int = 5, lock_minutes: int = 60) -> dict:
+        """
+        Ghi nhận lần đăng nhập sai.
+        Cập nhật đồng thời cho cả Tài khoản (username) và Địa chỉ IP (ip_address).
+        Nếu số lần thử sai >= max_attempts (5 lần) -> Khóa kép cả Tài khoản và IP trong lock_minutes (60 phút = 1 tiếng).
+        """
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 1. Cập nhật cho tài khoản username (nếu có username)
+                new_acc_fails = 1
+                if username:
+                    cursor.execute("SELECT failed_attempts FROM dashboard_account_lockouts WHERE username = %s", (username,))
+                    row_acc = cursor.fetchone()
+                    if row_acc:
+                        new_acc_fails = (row_acc['failed_attempts'] or 0) + 1
+                    
+                    if new_acc_fails >= max_attempts:
+                        cursor.execute("""
+                            INSERT INTO dashboard_account_lockouts (username, failed_attempts, locked_until, last_failed_at, last_failed_ip)
+                            VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s MINUTE), NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                locked_until = VALUES(locked_until),
+                                last_failed_at = VALUES(last_failed_at),
+                                last_failed_ip = VALUES(last_failed_ip)
+                        """, (username, new_acc_fails, lock_minutes, ip_address))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO dashboard_account_lockouts (username, failed_attempts, locked_until, last_failed_at, last_failed_ip)
+                            VALUES (%s, %s, NULL, NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                last_failed_at = VALUES(last_failed_at),
+                                last_failed_ip = VALUES(last_failed_ip)
+                        """, (username, new_acc_fails, ip_address))
+
+                # 2. Cập nhật cho IP ip_address
+                new_ip_fails = 1
+                if ip_address:
+                    cursor.execute("SELECT failed_attempts FROM dashboard_ip_lockouts WHERE ip_address = %s", (ip_address,))
+                    row_ip = cursor.fetchone()
+                    if row_ip:
+                        new_ip_fails = (row_ip['failed_attempts'] or 0) + 1
+                    
+                    if new_ip_fails >= max_attempts or new_acc_fails >= max_attempts:
+                        cursor.execute("""
+                            INSERT INTO dashboard_ip_lockouts (ip_address, failed_attempts, blocked_until, last_attempt_at, last_target_user)
+                            VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s MINUTE), NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                blocked_until = VALUES(blocked_until),
+                                last_attempt_at = VALUES(last_attempt_at),
+                                last_target_user = VALUES(last_target_user)
+                        """, (ip_address, new_ip_fails, lock_minutes, username))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO dashboard_ip_lockouts (ip_address, failed_attempts, blocked_until, last_attempt_at, last_target_user)
+                            VALUES (%s, %s, NULL, NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                last_attempt_at = VALUES(last_attempt_at),
+                                last_target_user = VALUES(last_target_user)
+                        """, (ip_address, new_ip_fails, username))
+
+                effective_fails = max(new_acc_fails, new_ip_fails)
+                is_locked = (effective_fails >= max_attempts)
+                return {
+                    'is_locked': is_locked,
+                    'failed_attempts': effective_fails,
+                    'remaining_attempts': max(0, max_attempts - effective_fails),
+                    'lock_minutes': lock_minutes
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_dashboard_login_success(username: str, ip_address: str):
+        """Đăng nhập thành công: giải phóng số lần sai của tài khoản và địa chỉ IP."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                if username:
+                    cursor.execute("""
+                        UPDATE dashboard_account_lockouts 
+                        SET failed_attempts = 0, locked_until = NULL 
+                        WHERE username = %s
+                    """, (username,))
+                if ip_address:
+                    cursor.execute("""
+                        UPDATE dashboard_ip_lockouts 
+                        SET failed_attempts = 0, blocked_until = NULL 
+                        WHERE ip_address = %s
+                    """, (ip_address,))
+                return True
+        finally:
+            conn.close()
+
+    # ====================================================================
     # SSO / OIDC METHODS (SINGLE SIGN-ON TẬP TRUNG)
     # ====================================================================
     @staticmethod

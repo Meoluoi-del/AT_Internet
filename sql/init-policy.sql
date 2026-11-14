@@ -269,3 +269,22 @@ VALUES
 ('webmail', 'Hệ thống Thư điện tử Sinh viên & Cán bộ (Webmail)', 'sec_mail_6654', 'http://mail.ptit.edu.vn/sso/callback', 'Dịch vụ Email cộng tác nội bộ trường @ptit.edu.vn', 'fa-solid fa-envelope'),
 ('nac_admin', 'Bảng điều khiển Quản trị mạng Trung tâm (NAC Console)', 'sec_nac_5565', 'http://localhost:5000/sso/callback', 'Trung tâm điều khiển NAC, RADIUS AAA và OpenLDAP', 'fa-solid fa-network-wired')
 ON DUPLICATE KEY UPDATE client_name=VALUES(client_name);
+
+-- ====================================================================
+-- 9. BẢNG dashboard_account_lockouts & dashboard_ip_lockouts (KHÓA KÉP TÀI KHOẢN & IP DASHBOARD)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS dashboard_account_lockouts (
+    username VARCHAR(64) PRIMARY KEY,
+    failed_attempts INT DEFAULT 0,
+    locked_until DATETIME NULL,
+    last_failed_at DATETIME NULL,
+    last_failed_ip VARCHAR(45) NULL
+) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS dashboard_ip_lockouts (
+    ip_address VARCHAR(45) PRIMARY KEY,
+    failed_attempts INT DEFAULT 0,
+    blocked_until DATETIME NULL,
+    last_attempt_at DATETIME NULL,
+    last_target_user VARCHAR(64) NULL
+) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
