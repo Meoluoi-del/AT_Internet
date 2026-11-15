@@ -75,6 +75,15 @@ services:
       DB_NAME: "radius"
       BRUTEFORCE_THRESHOLD: 6
       BRUTEFORCE_WINDOW_SECONDS: 180
+      SMTP_ENABLED: "${SMTP_ENABLED:-false}"
+      SMTP_SERVER: "${SMTP_SERVER:-smtp.gmail.com}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_USE_SSL: "${SMTP_USE_SSL:-true}"
+      SMTP_USE_TLS: "${SMTP_USE_TLS:-false}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM_EMAIL: "${SMTP_FROM_EMAIL:-}"
+      SMTP_FROM_NAME: "${SMTP_FROM_NAME:-Hệ thống Quản lý Mạng PTIT (NAC & IAM)}"
     ports:
       - "5000:5000"
     volumes:

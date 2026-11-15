@@ -20,10 +20,15 @@ def test_user(username, password, expected_vlan=None):
             print("  --> Result: \033[92m[PASSED - VLAN MATCHES POLICY]\033[0m")
         elif expected_vlan:
             print("  --> Result: \033[93m[WARNING - VLAN DIFFERENT FROM EXPECTED]\033[0m")
-    else:
+    elif code_name == 'Access-Reject':
         print(f"  --> Status: \033[91m{code_name}\033[0m")
         if expected_vlan is None:
             print("  --> Result: \033[92m[PASSED - CORRECTLY REJECTED]\033[0m")
+        else:
+            print("  --> Result: \033[91m[FAILED - UNEXPECTEDLY REJECTED]\033[0m")
+    else:
+        print(f"  --> Status: \033[91m{code_name}\033[0m")
+        print("  --> Result: \033[91m[FAILED - TIMEOUT OR NETWORK/PROTOCOL ERROR]\033[0m")
             
     return result
 

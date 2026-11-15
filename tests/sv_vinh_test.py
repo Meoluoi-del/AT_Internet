@@ -16,8 +16,8 @@ def simulate_bruteforce_attack(target_user='sv_vinh', attempts=1000):
     
     found_success = False
 
-    for i in range(120, attempts + 1):
-        fake_pass = f"{i}"
+    for i in range(0, attempts + 1):
+        fake_pass = f"P@ssword11{i}!"
         res = send_radius_auth('127.0.0.1', 1812, 'testing123', target_user, fake_pass)
         
         # Khi thử đúng mật khẩu -> Dừng lại và gửi request xác thực mật khẩu đúng

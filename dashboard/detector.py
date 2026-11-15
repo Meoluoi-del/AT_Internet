@@ -75,32 +75,39 @@ class ActiveDefenseDetector:
                         # 1. Move to quarantine group in LDAP
                         self.ldap_client.quarantine_user(username)
                         
-                        # 2. Ghi nhận sự kiện cách ly vào quarantine_events (Append-Only)
+                        # 2. Thu hồi toàn bộ phiên SSO đang hoạt động của user (Instant SLO)
+                        DBManager.terminate_sso_single_logout(username=username)
+
+                        # 3. Chặn luôn toàn bộ IP liên kết với tài khoản này
+                        blocked_ips = DBManager.block_user_ip(username=username, lock_minutes=1440)
+                        blocked_ips_str = ", ".join(blocked_ips) if blocked_ips else "N/A"
+
+                        # 4. Ghi nhận sự kiện cách ly vào quarantine_events (Append-Only)
                         DBManager.record_quarantine_event(
                             username=username,
                             event_type='QUARANTINE',
-                            reason=f"Vượt ngưỡng brute-force {count} lần trong {Config.BRUTEFORCE_WINDOW_SECONDS}s",
+                            reason=f"Vượt ngưỡng brute-force {count} lần trong {Config.BRUTEFORCE_WINDOW_SECONDS}s. Thu hồi phiên SSO, chặn IP: {blocked_ips_str}",
                             failed_count=count,
                             source='SYSTEM_ACTIVE_DEFENSE',
                             previous_group=current_group
                         )
 
-                        # 3. Record in Audit Log (Hash-Chain)
+                        # 5. Record in Audit Log (Hash-Chain)
                         DBManager.add_audit_log(
                             actor="SYSTEM_ACTIVE_DEFENSE",
                             action="AUTO_QUARANTINE_BRUTEFORCE",
                             target=username,
                             old_val=f"Group: {current_group}",
-                            new_val="Group: quarantine (VLAN 99)",
+                            new_val=f"Group: quarantine (VLAN 99) | Blocked IPs: {blocked_ips_str}",
                             ip="127.0.0.1"
                         )
                         
-                        # 4. Add to recent alerts
+                        # 6. Add to recent alerts
                         alert_msg = {
                             'username': username,
                             'failed_count': count,
                             'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'action': 'Đã tự động cô lập vào nhóm quarantine (VLAN 99)'
+                            'action': f'Đã tự động cô lập vào nhóm quarantine (VLAN 99) & chặn IP ({blocked_ips_str})'
                         }
                         self.recent_alerts.insert(0, alert_msg)
                         if len(self.recent_alerts) > 20:

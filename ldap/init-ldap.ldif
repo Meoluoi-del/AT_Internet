@@ -123,6 +123,7 @@ objectClass: top
 objectClass: groupOfNames
 cn: quantri
 description: Nhom Quan tri vien mang - Dynamic VLAN 10
+member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=admin01,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
 # 4.2. Nhóm Giảng viên (VLAN 30)
@@ -131,6 +132,7 @@ objectClass: top
 objectClass: groupOfNames
 cn: giangvien
 description: Nhom Giang vien - Dynamic VLAN 30
+member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=gv_nguyen,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
 # 4.3. Nhóm Sinh viên (VLAN 20)
@@ -139,6 +141,7 @@ objectClass: top
 objectClass: groupOfNames
 cn: sinhvien
 description: Nhom Sinh vien - Dynamic VLAN 20
+member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn

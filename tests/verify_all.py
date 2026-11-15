@@ -37,8 +37,11 @@ def run_e2e_verification():
         ("MariaDB Database", "127.0.0.1", 3306, "TCP"),
         ("Flask Dashboard Web", "127.0.0.1", 5000, "TCP"),
     ]
+    all_healthy = True
     for name, host, port, proto in services:
         ok = check_tcp_port(host, port)
+        if not ok:
+            all_healthy = False
         status = "\033[92m[ONLINE]\033[0m" if ok else "\033[91m[OFFLINE]\033[0m"
         print(f"  - {name:<22} (Cổng {port:>4}/{proto}): {status}")
 
@@ -68,11 +71,14 @@ def run_e2e_verification():
 
     # 3. Overall Verdict
     print("\n" + "="*75)
-    if passed_count == len(test_cases):
+    if passed_count == len(test_cases) and all_healthy:
         print(f"\033[92m TẤT CẢ {passed_count}/{len(test_cases)} KỊCH BẢN KIỂM THỬ ĐỀU ĐẠT CHUẨN AN TOÀN VÀ ĐẶC TẢ!\033[0m")
+        print("="*75)
+        sys.exit(0)
     else:
-        print(f"\033[93m ĐẠT {passed_count}/{len(test_cases)} KỊCH BẢN. VUI LÒNG KIỂM TRA LOG DỊCH VỤ.\033[0m")
-    print("="*75)
+        print(f"\033[91m THẤT BẠI: Chỉ đạt {passed_count}/{len(test_cases)} kịch bản hoặc có dịch vụ OFFLINE. Vui lòng kiểm tra log!\033[0m")
+        print("="*75)
+        sys.exit(1)
 
 if __name__ == '__main__':
     run_e2e_verification()

@@ -219,7 +219,7 @@ def create_access_token(user_info: dict, client_id: str, scope: str = "openid pr
         "client_id": client_id,
         "scope": scope,
         "token_type": "Bearer",
-        "jti": secrets.token_hex(16),
+        "jti": user_info.get('jti') or secrets.token_hex(16),
         "iat": now,
         "exp": now + expires_in
     }

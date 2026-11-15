@@ -458,12 +458,17 @@
 
             <div>
                 <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wide mb-1">Mật khẩu ban đầu *</label>
-                <input type="password" name="password" required placeholder="••••••••••••" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
-                <!-- Chú ý mức Vàng: Thuật toán băm SSHA -->
-                <span class="text-[10px] text-amber-300 font-mono mt-1 block flex items-center space-x-1">
-                    <i class="fa-solid fa-lock text-[9px]"></i>
-                    <span>Tự động mã hóa chuẩn {SSHA} với Salt ngẫu nhiên trước khi lưu vào LDAP.</span>
-                </span>
+                <input type="password" name="password" required minlength="12" placeholder="Tối thiểu 12 ký tự (hoa, thường, số, ký tự đặc biệt)" class="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs text-white focus:border-white focus:outline-none font-mono">
+                <!-- Chú ý chính sách mật khẩu mạnh chuẩn NAC -->
+                <div class="mt-1.5 p-2 rounded-xl bg-zinc-950 border border-zinc-800 text-[10px] space-y-0.5 font-mono">
+                    <span class="text-amber-300 font-bold block flex items-center space-x-1">
+                        <i class="fa-solid fa-shield-halved text-[9px]"></i>
+                        <span>Chính sách mật khẩu mạnh bắt buộc:</span>
+                    </span>
+                    <span class="text-zinc-400 block">• Tối thiểu 12 ký tự | Có chữ in hoa (A-Z)</span>
+                    <span class="text-zinc-400 block">• Gồm chữ thường (a-z) & số (0-9) | Ký tự đặc biệt (!@#$...)</span>
+                    <span class="text-zinc-500 block pt-0.5">• Tự động mã hóa chuẩn {SSHA} với Salt ngẫu nhiên trước khi lưu vào LDAP.</span>
+                </div>
             </div>
 
             <div>

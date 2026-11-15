@@ -735,3 +735,328 @@ class DBManager:
                 return None
         finally:
             conn.close()
+
+    # ====================================================================
+    # SINGLE LOGOUT (SLO) & SESSION REPLAY DEFENSE METHODS
+    # ====================================================================
+    @staticmethod
+    def record_sso_master_session(session_id: str, username: str, ip_address: str = None, user_agent: str = None):
+        """Ghi nhận hoặc làm mới phiên SSO Master trung tâm."""
+        if not session_id or not username:
+            return False
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO sso_sessions (session_id, username, ip_address, user_agent, is_active, last_activity)
+                    VALUES (%s, %s, %s, %s, 1, NOW())
+                    ON DUPLICATE KEY UPDATE 
+                        username = VALUES(username),
+                        ip_address = VALUES(ip_address),
+                        user_agent = VALUES(user_agent),
+                        is_active = 1,
+                        logged_out_at = NULL,
+                        last_activity = NOW()
+                """, (session_id, username, ip_address, user_agent))
+                conn.commit()
+                return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_sso_master_session(session_id: str):
+        """Lấy thông tin phiên Master từ DB nếu còn hiệu lực (is_active=1 và logged_out_at IS NULL)."""
+        if not session_id:
+            return None
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT session_id, username, ip_address, user_agent, is_active, logged_out_at
+                    FROM sso_sessions 
+                    WHERE session_id = %s AND is_active = 1 AND logged_out_at IS NULL
+                """, (session_id,))
+                return cursor.fetchone()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_sso_client_session(session_id: str, client_id: str, username: str, access_token_jti: str = None):
+        """Ghi nhận phiên ứng dụng vệ tinh liên kết với phiên SSO trung tâm."""
+        if not session_id or not client_id or not username:
+            return False
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO sso_sessions (session_id, username, is_active, last_activity)
+                    VALUES (%s, %s, 1, NOW())
+                    ON DUPLICATE KEY UPDATE is_active = 1, last_activity = NOW()
+                """, (session_id, username))
+                
+                cursor.execute("""
+                    INSERT INTO sso_client_sessions (session_id, client_id, username, access_token_jti, is_active)
+                    VALUES (%s, %s, %s, %s, 1)
+                """, (session_id, client_id, username, access_token_jti))
+                conn.commit()
+                return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_active_sso_client_apps(session_id: str) -> list:
+        """Lấy danh sách các ứng dụng Client đang có phiên hoạt động gắn với session_id."""
+        if not session_id:
+            return []
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT c.client_id, c.client_name, c.icon_class
+                    FROM sso_client_sessions cs
+                    JOIN sso_clients c ON cs.client_id = c.client_id
+                    WHERE cs.session_id = %s AND cs.is_active = 1 AND cs.revoked_at IS NULL
+                    ORDER BY cs.id ASC
+                """, (session_id,))
+                return cursor.fetchall()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def is_sso_session_valid(session_id: str = None, client_id: str = None, jti: str = None) -> bool:
+        """
+        Kiểm tra tính hợp lệ của phiên làm việc (Chống Session Replay Attack).
+        Nếu phiên Master hoặc Client đã bị hủy qua Single Logout -> Trả về False.
+        """
+        if not session_id and not jti:
+            return False
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 1. Kiểm tra trạng thái master session nếu có session_id
+                if session_id:
+                    cursor.execute("""
+                        SELECT is_active, logged_out_at FROM sso_sessions WHERE session_id = %s
+                    """, (session_id,))
+                    m_row = cursor.fetchone()
+                    if not m_row or m_row.get('is_active') != 1 or m_row.get('logged_out_at') is not None:
+                        return False
+                
+                # 2. Nếu có client_id và session_id, kiểm tra client session tương ứng
+                if session_id and client_id:
+                    cursor.execute("""
+                        SELECT is_active, revoked_at FROM sso_client_sessions
+                        WHERE session_id = %s AND client_id = %s
+                        ORDER BY id DESC LIMIT 1
+                    """, (session_id, client_id))
+                    c_row = cursor.fetchone()
+                    if c_row and (c_row.get('is_active') != 1 or c_row.get('revoked_at') is not None):
+                        return False
+                
+                # 3. Nếu có jti của token, kiểm tra xem token jti và master session liên quan có bị thu hồi không
+                if jti:
+                    cursor.execute("""
+                        SELECT cs.is_active, cs.revoked_at, s.is_active as master_active, s.logged_out_at
+                        FROM sso_client_sessions cs
+                        LEFT JOIN sso_sessions s ON cs.session_id = s.session_id
+                        WHERE cs.access_token_jti = %s
+                        ORDER BY cs.id DESC LIMIT 1
+                    """, (jti,))
+                    j_row = cursor.fetchone()
+                    if j_row:
+                        if j_row.get('is_active') != 1 or j_row.get('revoked_at') is not None:
+                            return False
+                        if j_row.get('master_active') == 0 or j_row.get('logged_out_at') is not None:
+                            return False
+
+                return True
+        finally:
+            conn.close()
+
+    @staticmethod
+    def terminate_sso_single_logout(session_id: str = None, username: str = None) -> int:
+        """
+        Thực hiện Single Logout (SLO):
+        Hủy toàn bộ phiên Master và tất cả các phiên Client liên kết.
+        Trả về số lượng ứng dụng đã được thu hồi phiên.
+        """
+        conn = get_db_connection()
+        revoked_count = 0
+        try:
+            with conn.cursor() as cursor:
+                if session_id:
+                    cursor.execute("""
+                        UPDATE sso_sessions 
+                        SET is_active = 0, logged_out_at = NOW() 
+                        WHERE session_id = %s
+                    """, (session_id,))
+                    cursor.execute("""
+                        UPDATE sso_client_sessions 
+                        SET is_active = 0, revoked_at = NOW() 
+                        WHERE session_id = %s AND is_active = 1
+                    """, (session_id,))
+                    revoked_count = cursor.rowcount
+                elif username:
+                    cursor.execute("""
+                        UPDATE sso_sessions 
+                        SET is_active = 0, logged_out_at = NOW() 
+                        WHERE username = %s
+                    """, (username,))
+                    cursor.execute("""
+                        UPDATE sso_client_sessions 
+                        SET is_active = 0, revoked_at = NOW() 
+                        WHERE username = %s AND is_active = 1
+                    """, (username,))
+                    revoked_count = cursor.rowcount
+                conn.commit()
+                return revoked_count
+        finally:
+            conn.close()
+
+    # ====================================================================
+    # QUARANTINE IP LOCKOUT & RELEASE METHODS
+    # ====================================================================
+    @staticmethod
+    def block_user_ip(username: str, lock_minutes: int = 1440) -> list:
+        """Thu thập tất cả IP mà user từng sử dụng (từ sso_sessions, radacct, audit_logs) và khóa lại."""
+        conn = get_db_connection()
+        blocked_ips = set()
+        try:
+            with conn.cursor() as cursor:
+                # 1. Tìm IP từ sso_sessions
+                try:
+                    cursor.execute("SELECT ip_address FROM sso_sessions WHERE username = %s AND ip_address IS NOT NULL", (username,))
+                    for r in cursor.fetchall():
+                        ip = r['ip_address']
+                        if ip and ip not in {'127.0.0.1', 'localhost', '::1'}:
+                            blocked_ips.add(ip)
+                except Exception:
+                    pass
+
+                # 2. Tìm IP từ audit_logs
+                try:
+                    cursor.execute("SELECT ip_address FROM audit_logs WHERE actor_username = %s AND ip_address IS NOT NULL", (username,))
+                    for r in cursor.fetchall():
+                        ip = r['ip_address']
+                        if ip and ip not in {'127.0.0.1', 'localhost', '::1'}:
+                            blocked_ips.add(ip)
+                except Exception:
+                    pass
+
+                # 3. Ghi nhận chặn các IP này vào bảng dashboard_ip_lockouts
+                for ip in blocked_ips:
+                    cursor.execute("""
+                        INSERT INTO dashboard_ip_lockouts (ip_address, failed_attempts, blocked_until, last_attempt_at, last_target_user)
+                        VALUES (%s, 5, DATE_ADD(NOW(), INTERVAL %s MINUTE), NOW(), %s)
+                        ON DUPLICATE KEY UPDATE 
+                            blocked_until = DATE_ADD(NOW(), INTERVAL %s MINUTE),
+                            last_target_user = %s,
+                            failed_attempts = 5
+                    """, (ip, lock_minutes, username, lock_minutes, username))
+                conn.commit()
+            return list(blocked_ips)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def unblock_user_ip(username: str) -> list:
+        """Giải phóng toàn bộ địa chỉ IP liên kết với tài khoản khi tài khoản được mở khóa."""
+        conn = get_db_connection()
+        unblocked_ips = []
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT ip_address FROM dashboard_ip_lockouts 
+                    WHERE last_target_user = %s
+                """, (username,))
+                rows = cursor.fetchall()
+                unblocked_ips = [r['ip_address'] for r in rows]
+
+                if unblocked_ips:
+                    cursor.execute("""
+                        DELETE FROM dashboard_ip_lockouts 
+                        WHERE last_target_user = %s
+                    """, (username,))
+                    conn.commit()
+            return unblocked_ips
+        finally:
+            conn.close()
+
+    # ====================================================================
+    # PASSWORD RESET VIA EMAIL (QUẢN LÝ TOKEN ĐẶT LẠI MẬT KHẨU)
+    # ====================================================================
+    @staticmethod
+    def create_password_reset_token(username: str, email: str, raw_token: str, expires_minutes: int = 15, ip_address: str = None) -> int:
+        """Tạo token đặt lại mật khẩu với thời hạn expires_minutes và lưu hash SHA-256."""
+        token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Vô hiệu hóa các token cũ chưa sử dụng của user này
+                cursor.execute("""
+                    UPDATE password_reset_tokens 
+                    SET is_used = 1, used_at = NOW() 
+                    WHERE username = %s AND is_used = 0
+                """, (username,))
+                
+                cursor.execute("""
+                    INSERT INTO password_reset_tokens (username, email, token_hash, expires_at, ip_address)
+                    VALUES (%s, %s, %s, DATE_ADD(NOW(), INTERVAL %s MINUTE), %s)
+                """, (username, email, token_hash, expires_minutes, ip_address))
+                conn.commit()
+                return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def verify_password_reset_token(raw_token: str) -> dict:
+        """
+        Xác thực tính hợp lệ của token đặt lại mật khẩu:
+        - Khớp hash SHA-256
+        - Chưa bị sử dụng (is_used = 0)
+        - Chưa hết hạn (expires_at > NOW())
+        """
+        if not raw_token or not isinstance(raw_token, str):
+            return None
+        token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, username, email, expires_at, is_used,
+                           TIMESTAMPDIFF(SECOND, NOW(), expires_at) AS seconds_left
+                    FROM password_reset_tokens
+                    WHERE token_hash = %s
+                """, (token_hash,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                if row.get('is_used') == 1:
+                    return {'valid': False, 'reason': 'used', 'username': row['username']}
+                if (row.get('seconds_left') is not None and row.get('seconds_left') <= 0):
+                    return {'valid': False, 'reason': 'expired', 'username': row['username']}
+                return {
+                    'valid': True,
+                    'token_id': row['id'],
+                    'username': row['username'],
+                    'email': row['email'],
+                    'seconds_left': row.get('seconds_left', 0)
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def mark_password_reset_token_used(token_id: int) -> bool:
+        """Đánh dấu token đặt lại mật khẩu đã sử dụng xong."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE password_reset_tokens 
+                    SET is_used = 1, used_at = NOW() 
+                    WHERE id = %s
+                """, (token_id,))
+                conn.commit()
+                return True
+        finally:
+            conn.close()

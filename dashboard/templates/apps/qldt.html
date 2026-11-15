@@ -1,0 +1,221 @@
+{% extends "apps/base_app.html" %}
+
+{% block title %}Cổng Đào tạo & Quản lý Học tập (QLĐT / LMS){% endblock %}
+{% block app_name %}CỔNG ĐÀO TẠO & HỌC TẬP TRỰC TUYẾN (QLĐT / LMS){% endblock %}
+{% block app_icon %}fa-solid fa-graduation-cap text-blue-400{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- ACADEMIC PROFILE SUMMARY BANNER -->
+    <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div class="flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center text-white text-3xl font-black shadow-lg">
+                <i class="fa-solid fa-user-graduate"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-3">
+                    <h2 class="text-xl font-black text-white font-mono uppercase">{{ user.name }}</h2>
+                    <span class="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase
+                        {% if user.group == 'quantri' %}bg-orange-500/20 text-orange-400 border border-orange-500/30
+                        {% elif user.group == 'giangvien' %}bg-amber-500/20 text-amber-300 border border-amber-500/30
+                        {% else %}bg-blue-500/20 text-blue-300 border border-blue-500/30{% endif %}">
+                        Vai trò: {{ user.group }} (VLAN {{ user.vlan }})
+                    </span>
+                </div>
+                <p class="text-xs text-zinc-400 mt-1">Mã định danh sinh viên / cán bộ: <span class="font-mono text-zinc-300 font-bold">{{ user.username }}</span> | Email: <span class="text-zinc-300">{{ user.email }}</span></p>
+                <div class="flex items-center space-x-4 mt-2 text-[11px] font-mono text-zinc-400">
+                    <span>Khóa học: <strong class="text-white">D22 - ATTT</strong></span>
+                    <span>Hệ đào tạo: <strong class="text-white">Đại học Chính quy</strong></span>
+                    <span>Tình trạng: <span class="text-emerald-400 font-bold">&bull; Đang theo học</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACADEMIC METRICS CARDS -->
+        <div class="grid grid-cols-3 gap-3 text-center font-mono">
+            <div class="p-3 bg-black/60 rounded-xl border border-zinc-800/80">
+                <span class="text-[10px] text-zinc-500 block uppercase">Tín chỉ tích lũy</span>
+                <span class="text-lg font-black text-blue-400">118 / 135</span>
+            </div>
+            <div class="p-3 bg-black/60 rounded-xl border border-zinc-800/80">
+                <span class="text-[10px] text-zinc-500 block uppercase">Điểm CPA</span>
+                <span class="text-lg font-black text-amber-400">3.52 / 4.0</span>
+            </div>
+            <div class="p-3 bg-black/60 rounded-xl border border-zinc-800/80">
+                <span class="text-[10px] text-zinc-500 block uppercase">Xếp loại</span>
+                <span class="text-lg font-black text-emerald-400">Giỏi</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN TWO-COLUMN SECTION -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- LEFT 2 COLS: SCHEDULE & GRADE MATRIX -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- SCHEDULE SECTION -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-6 shadow-xl">
+                <div class="flex items-center justify-between pb-3 border-b border-zinc-800 mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-calendar-week text-blue-400"></i>
+                        <span>Thời Khóa Biểu & Lớp Học Tuần Này:</span>
+                    </h3>
+                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-700">Học kỳ 1 - Năm 2026</span>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="p-3.5 bg-black/40 rounded-xl border border-zinc-800/80 flex items-center justify-between hover:border-zinc-700 transition-all">
+                        <div class="flex items-center space-x-3.5">
+                            <div class="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-xs">
+                                T3
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-white">An toàn & Bảo mật Mạng máy tính (NT208)</h4>
+                                <p class="text-[11px] text-zinc-400 font-mono mt-0.5">Tiết 1-3 (07:00 - 09:30) | Phòng LAB 402-A2 | GV: TS. Nguyễn Văn Tuấn</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-mono font-bold">Vào lớp LMS</span>
+                    </div>
+
+                    <div class="p-3.5 bg-black/40 rounded-xl border border-zinc-800/80 flex items-center justify-between hover:border-zinc-700 transition-all">
+                        <div class="flex items-center space-x-3.5">
+                            <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
+                                T5
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-white">Mật mã học & Ứng dụng Chữ ký số (CR301)</h4>
+                                <p class="text-[11px] text-zinc-400 font-mono mt-0.5">Tiết 4-6 (09:45 - 12:15) | Giảng đường 101-A3 | GV: TS. Lê Hoàng Nam</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded text-[10px] font-mono font-bold">Tài liệu tuần 8</span>
+                    </div>
+
+                    <div class="p-3.5 bg-black/40 rounded-xl border border-zinc-800/80 flex items-center justify-between hover:border-zinc-700 transition-all">
+                        <div class="flex items-center space-x-3.5">
+                            <div class="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold text-xs">
+                                T7
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-white">Quản trị Mạng Doanh nghiệp & 802.1X NAC (NA405)</h4>
+                                <p class="text-[11px] text-zinc-400 font-mono mt-0.5">Tiết 7-9 (13:00 - 15:30) | Phòng Thực hành Cisco | GV: ThS. Trần Đức Minh</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded text-[10px] font-mono font-bold">Nộp bài tập</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRADES SECTION -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-6 shadow-xl">
+                <div class="flex items-center justify-between pb-3 border-b border-zinc-800 mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-award text-amber-400"></i>
+                        <span>Bảng Điểm Học Phần Gần Nhất:</span>
+                    </h3>
+                    <span class="text-[10px] font-mono text-zinc-400">Đã cập nhật ngày hôm nay</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead>
+                            <tr class="text-zinc-500 border-b border-zinc-800/80 text-[10px] uppercase">
+                                <th class="pb-2">Mã HP</th>
+                                <th class="pb-2">Tên Môn Học</th>
+                                <th class="pb-2 text-center">Số TC</th>
+                                <th class="pb-2 text-center">Chuyên cần</th>
+                                <th class="pb-2 text-center">Giữa kỳ</th>
+                                <th class="pb-2 text-center">Cuối kỳ</th>
+                                <th class="pb-2 text-right">Tổng kết (Chữ)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/50 text-zinc-300">
+                            <tr>
+                                <td class="py-2.5 font-bold text-white">NT208</td>
+                                <td class="py-2.5">An toàn Mạng máy tính</td>
+                                <td class="py-2.5 text-center">3</td>
+                                <td class="py-2.5 text-center text-emerald-400">10.0</td>
+                                <td class="py-2.5 text-center text-emerald-400">9.0</td>
+                                <td class="py-2.5 text-center text-emerald-400">8.5</td>
+                                <td class="py-2.5 text-right font-black text-emerald-400">A (8.8)</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-bold text-white">CR301</td>
+                                <td class="py-2.5">Mật mã học Ứng dụng</td>
+                                <td class="py-2.5 text-center">3</td>
+                                <td class="py-2.5 text-center text-emerald-400">9.5</td>
+                                <td class="py-2.5 text-center text-emerald-400">8.5</td>
+                                <td class="py-2.5 text-center text-emerald-400">9.0</td>
+                                <td class="py-2.5 text-right font-black text-emerald-400">A (8.9)</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-bold text-white">NA405</td>
+                                <td class="py-2.5">Quản trị Mạng & 802.1X NAC</td>
+                                <td class="py-2.5 text-center">3</td>
+                                <td class="py-2.5 text-center text-emerald-400">10.0</td>
+                                <td class="py-2.5 text-center text-emerald-400">9.5</td>
+                                <td class="py-2.5 text-center text-emerald-400">9.5</td>
+                                <td class="py-2.5 text-right font-black text-emerald-400">A+ (9.6)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COL: NOTICES & SSO INTEGRATION STATUS -->
+        <div class="space-y-6">
+
+            <!-- NOTICES -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-6 shadow-xl">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-white pb-3 border-b border-zinc-800 mb-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-bullhorn text-red-400"></i>
+                    <span>Thông Báo Đào Tạo Mới Nhất:</span>
+                </h3>
+                <div class="space-y-3.5 text-xs">
+                    <div class="p-3 bg-black/40 rounded-xl border border-zinc-800/80">
+                        <span class="text-[10px] text-amber-400 font-mono block">15/11/2026 - Phòng Giáo vụ</span>
+                        <h5 class="font-bold text-white mt-1">Lịch thi sát hạch chứng chỉ ATTT Quốc tế</h5>
+                        <p class="text-[11px] text-zinc-400 mt-1">Sinh viên đủ điều kiện đạt CPA >= 3.2 được đăng ký thi chứng chỉ Security+ miễn phí.</p>
+                    </div>
+                    <div class="p-3 bg-black/40 rounded-xl border border-zinc-800/80">
+                        <span class="text-[10px] text-blue-400 font-mono block">14/11/2026 - Trung tâm Khảo thí</span>
+                        <h5 class="font-bold text-white mt-1">Khai báo phòng thi Học kỳ 1 qua SSO</h5>
+                        <p class="text-[11px] text-zinc-400 mt-1">Học viện áp dụng quy chế nhận diện vân tay & xác thực qua Cổng SSO tập trung.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SSO & SLO FORENSICS CARD -->
+            <div class="bg-black/60 rounded-2xl border border-zinc-800 p-6 shadow-xl space-y-3 font-mono text-[11px]">
+                <h4 class="text-xs font-bold text-emerald-400 flex items-center space-x-2 uppercase">
+                    <i class="fa-solid fa-shield-check"></i>
+                    <span>Bảo Mật Phiên SSO & SLO</span>
+                </h4>
+                <p class="text-zinc-400 text-[10px] leading-relaxed">
+                    Website QLĐT được liên kết với Cổng SSO PTIT. Khi bạn bấm nút <strong>Đăng xuất (SLO)</strong>, mã định danh phiên và token RS256 sẽ được thu hồi trên cơ sở dữ liệu để chống kẻ tấn công phát lại (Session Replay).
+                </p>
+                <div class="pt-2 border-t border-zinc-800 space-y-1.5 text-[10px]">
+                    <div class="flex justify-between">
+                        <span class="text-zinc-500">Thuật toán chữ ký:</span>
+                        <span class="text-white font-bold">RS256 (RSA 2048-bit)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-zinc-500">Mã Token JTI:</span>
+                        <span class="text-zinc-300">{{ token_jti or 'jti_sec_0029a' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-zinc-500">Single Logout API:</span>
+                        <span class="text-amber-400">/oauth/logout</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

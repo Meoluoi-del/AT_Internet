@@ -1,0 +1,143 @@
+{% extends "apps/base_app.html" %}
+
+{% block title %}Thư viện Số & Học liệu PTIT (E-Library){% endblock %}
+{% block app_name %}THƯ VIỆN SỐ & HỌC LIỆU TRỰC TUYẾN (E-LIBRARY){% endblock %}
+{% block app_icon %}fa-solid fa-book-bookmark text-purple-400{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- DIGITAL LIBRARY BANNER & SEARCH -->
+    <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+            <div class="flex items-center space-x-3">
+                <span class="w-12 h-12 rounded-xl bg-purple-900/40 border border-purple-700/60 flex items-center justify-center text-purple-300 text-2xl font-bold">
+                    <i class="fa-solid fa-book-open-reader"></i>
+                </span>
+                <div>
+                    <h2 class="text-xl font-black text-white uppercase font-mono">KHO TÀI LIỆU SỐ CHUYÊN NGÀNH AN TOÀN THÔNG TIN</h2>
+                    <p class="text-xs text-zinc-400 mt-0.5">Tra cứu giáo trình, bài báo khoa học IEEE, tiêu chuẩn NIST và đồ án tốt nghiệp xuất sắc</p>
+                </div>
+            </div>
+
+            <!-- SEARCH BAR -->
+            <div class="mt-4 flex items-center max-w-xl">
+                <div class="relative w-full">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-zinc-500 text-xs"></i>
+                    <input type="text" placeholder="Tìm kiếm giáo trình, luận văn, mã tài liệu (VD: 802.1X, Cryptography, Radius)..." 
+                        class="w-full pl-9 pr-4 py-2 bg-black/60 rounded-xl border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-purple-500 font-mono">
+                </div>
+                <button class="ml-2.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl font-mono uppercase tracking-wider transition-all">
+                    Tìm kiếm
+                </button>
+            </div>
+        </div>
+
+        <!-- READER CARD SUMMARY -->
+        <div class="bg-black/60 p-4 rounded-xl border border-zinc-800 font-mono text-xs space-y-2 min-w-[260px]">
+            <div class="flex items-center justify-between pb-2 border-b border-zinc-800">
+                <span class="text-zinc-400 text-[10px] uppercase font-bold">Thẻ Bạn Đọc Điện Tử</span>
+                <span class="text-emerald-400 text-[10px] font-bold">&bull; Đang kích hoạt</span>
+            </div>
+            <div class="flex justify-between text-[11px]">
+                <span class="text-zinc-500">Chủ thẻ:</span>
+                <span class="font-bold text-white">{{ user.name }}</span>
+            </div>
+            <div class="flex justify-between text-[11px]">
+                <span class="text-zinc-500">Quyền tải tài liệu:</span>
+                <span class="text-amber-400 font-bold">VLAN {{ user.vlan }}
+                    {% if user.vlan == 10 %}(Toàn quyền)
+                    {% elif user.vlan == 30 %}(Giảng dạy)
+                    {% else %}(Sinh viên){% endif %}
+                </span>
+            </div>
+            <div class="flex justify-between text-[11px]">
+                <span class="text-zinc-500">Sách đang mượn:</span>
+                <span class="text-blue-400 font-bold">02 quyển (Còn 12 ngày)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOCUMENT CATALOG GRID -->
+    <div>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
+                <i class="fa-solid fa-layer-group text-purple-400"></i>
+                <span>Tài Liệu Số Đề Xuất Cho Nhóm [{{ user.group|upper }}]:</span>
+            </h3>
+            <span class="text-[10px] font-mono text-zinc-400">Tổng cộng: 1,420 tài liệu số</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+            <!-- BOOK CARD 1 -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between hover:border-purple-500/50 transition-all shadow-xl">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-zinc-800 text-[10px] font-mono">
+                        <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">GIÁO TRÌNH CHÍNH</span>
+                        <span class="text-zinc-500">Mã: ATTT-2026-01</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mt-3 leading-snug">Kiến trúc Kiểm soát Truy cập Mạng Doanh nghiệp (IEEE 802.1X & RADIUS AAA)</h4>
+                    <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Tác giả: GS.TS. Nguyễn Hữu Dũng | NXB Thông tin & Truyền thông | 2026</p>
+                    <div class="mt-3 text-[11px] font-mono text-zinc-500">
+                        <span>Định dạng: <strong>PDF (18.4 MB)</strong></span> | <span>Số trang: <strong>380 trang</strong></span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-zinc-800 flex items-center justify-between">
+                    <span class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-circle-check mr-1"></i>Đã cấp phép (VLAN {{ user.vlan }})</span>
+                    <button class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono transition-all flex items-center space-x-1">
+                        <i class="fa-solid fa-download text-[10px]"></i>
+                        <span>Tải về</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BOOK CARD 2 -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between hover:border-purple-500/50 transition-all shadow-xl">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-zinc-800 text-[10px] font-mono">
+                        <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">TIÊU CHUẨN QUỐC TẾ</span>
+                        <span class="text-zinc-500">Mã: NIST-SP-800</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mt-3 leading-snug">NIST SP 800-207: Zero Trust Architecture & Dynamic VLAN Segmentation</h4>
+                    <p class="text-xs text-zinc-400 mt-2 leading-relaxed">National Institute of Standards and Technology (NIST) Special Publication</p>
+                    <div class="mt-3 text-[11px] font-mono text-zinc-500">
+                        <span>Định dạng: <strong>PDF (8.2 MB)</strong></span> | <span>Ngôn ngữ: <strong>Tiếng Anh</strong></span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-zinc-800 flex items-center justify-between">
+                    <span class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-circle-check mr-1"></i>Tự do đọc trực tuyến</span>
+                    <button class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-xs font-bold font-mono transition-all flex items-center space-x-1">
+                        <i class="fa-solid fa-eye text-[10px]"></i>
+                        <span>Đọc ngay</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- BOOK CARD 3 -->
+            <div class="bg-[#121217] rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between hover:border-purple-500/50 transition-all shadow-xl">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-zinc-800 text-[10px] font-mono">
+                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">ĐỒ ÁN XUẤT SẮC</span>
+                        <span class="text-zinc-500">Mã: D22-LVTN-09</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mt-3 leading-snug">Thiết kế & Triển khai Hệ thống Single Sign-On OIDC kết hợp Phòng chống Active Defense</h4>
+                    <p class="text-xs text-zinc-400 mt-2 leading-relaxed">Sinh viên: Nhóm Nghiên cứu An toàn Mạng PTIT | GVHD: TS. Nguyễn Văn Tuấn</p>
+                    <div class="mt-3 text-[11px] font-mono text-zinc-500">
+                        <span>Định dạng: <strong>PDF + Source Code</strong></span> | <span>Điểm: <strong>9.8 / 10</strong></span>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-zinc-800 flex items-center justify-between">
+                    <span class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-circle-check mr-1"></i>Học liệu mở</span>
+                    <button class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold font-mono transition-all flex items-center space-x-1">
+                        <i class="fa-solid fa-download text-[10px]"></i>
+                        <span>Tải về</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

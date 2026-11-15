@@ -20,3 +20,14 @@ class Config:
     # Active Defense / Brute-force threshold
     BRUTEFORCE_THRESHOLD = int(os.environ.get('BRUTEFORCE_THRESHOLD', 6))  # 6 failed attempts
     BRUTEFORCE_WINDOW_SECONDS = int(os.environ.get('BRUTEFORCE_WINDOW_SECONDS', 180)) # within 3 minutes
+
+    # SMTP Configuration (Gửi Email xác thực thực tế về Gmail / Mail Server)
+    SMTP_ENABLED = os.environ.get('SMTP_ENABLED', 'false').lower() in ('true', '1', 'yes')
+    SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', 465))
+    SMTP_USE_SSL = os.environ.get('SMTP_USE_SSL', 'true').lower() in ('true', '1', 'yes')
+    SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'false').lower() in ('true', '1', 'yes')
+    SMTP_USER = os.environ.get('SMTP_USER', '')
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+    SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', '') or os.environ.get('SMTP_USER', '')
+    SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'Hệ thống Quản lý Mạng PTIT (NAC & IAM)')

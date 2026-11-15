@@ -17,6 +17,8 @@ ATTR_TUNNEL_TYPE = 64
 ATTR_TUNNEL_MEDIUM_TYPE = 65
 ATTR_TUNNEL_PRIVATE_GROUP_ID = 81
 ATTR_REPLY_MESSAGE = 18
+ATTR_SESSION_TIMEOUT = 27
+ATTR_IDLE_TIMEOUT = 28
 
 def encode_password(secret: str, authenticator: bytes, password: str) -> bytes:
     """Encode password according to RFC 2865 section 5.2 (MD5 XOR)."""
@@ -82,6 +84,16 @@ def send_radius_auth(host: str, port: int, secret: str, username: str, password:
         
     resp_code, resp_id, resp_len, resp_auth = struct.unpack('!BBH16s', resp[:20])
     
+    # 1. Kiểm tra tính toàn vẹn Packet Identifier (RFC 2865 Section 3)
+    if resp_id != packet_id:
+        return {'code': 0, 'code_name': 'PACKET_ID_MISMATCH', 'vlan': None, 'attributes': {}}
+        
+    # 2. Xác thực Response Authenticator chống giả mạo phản hồi (RFC 2865 Section 3)
+    secret_bytes = secret.encode('utf-8')
+    expected_auth = hashlib.md5(resp[:4] + authenticator + resp[20:resp_len] + secret_bytes).digest()
+    if resp_auth != expected_auth:
+        return {'code': 0, 'code_name': 'AUTHENTICATOR_MISMATCH', 'vlan': None, 'attributes': {}}
+    
     parsed_attrs = {}
     pos = 20
     vlan_id = None
@@ -108,6 +120,10 @@ def send_radius_auth(host: str, port: int, secret: str, username: str, password:
             parsed_attrs['Tunnel-Medium-Type'] = 'IEEE-802'
         elif a_type == ATTR_REPLY_MESSAGE:
             parsed_attrs['Reply-Message'] = a_val.decode('utf-8', errors='ignore')
+        elif a_type == ATTR_SESSION_TIMEOUT and len(a_val) == 4:
+            parsed_attrs['Session-Timeout'] = struct.unpack('!I', a_val)[0]
+        elif a_type == ATTR_IDLE_TIMEOUT and len(a_val) == 4:
+            parsed_attrs['Idle-Timeout'] = struct.unpack('!I', a_val)[0]
             
         pos += a_len
         

@@ -1,7 +1,8 @@
 import os
 import hashlib
 import base64
-from ldap3 import Server, Connection, ALL, SUBTREE, MODIFY_REPLACE, MODIFY_ADD, MODIFY_DELETE
+import logging
+from ldap3 import Server, Connection, ALL, SUBTREE, BASE, MODIFY_REPLACE, MODIFY_ADD, MODIFY_DELETE
 from config import Config
 
 def ssha_hash(password: str) -> str:
@@ -82,6 +83,49 @@ class LDAPClient:
         finally:
             conn.unbind()
 
+    def authenticate(self, uid: str, password: str) -> bool:
+        """
+        Xác thực tài khoản người dùng qua OpenLDAP bằng cơ chế Direct Bind.
+        Hỗ trợ toàn bộ tài khoản Sinh viên, Giảng viên trong hệ thống IAM trường.
+        """
+        if not uid or not password:
+            return False
+        user_dn = f"uid={uid},{self.users_dn}"
+        try:
+            user_conn = Connection(self.server, user=user_dn, password=password)
+            if user_conn.bind():
+                user_conn.unbind()
+                return True
+            return False
+        except Exception:
+            return False
+
+    def get_user_info(self, uid: str) -> dict:
+        """Lấy thông tin hồ sơ chi tiết của người dùng từ OpenLDAP (cn, mail, group, vlan, status)."""
+        conn = self._get_connection()
+        try:
+            conn.search(
+                search_base=self.users_dn,
+                search_filter=f'(uid={uid})',
+                search_scope=SUBTREE,
+                attributes=['uid', 'cn', 'sn', 'mail', 'description']
+            )
+            if not conn.entries:
+                return None
+            entry = conn.entries[0]
+            group = self.get_user_group(uid) or 'sinhvien'
+            vlan_map = {'quantri': '10', 'sinhvien': '20', 'giangvien': '30', 'quarantine': '99'}
+            return {
+                'uid': uid,
+                'cn': str(entry.cn) if entry.cn else uid,
+                'mail': str(entry.mail) if entry.mail else f"{uid}@ptit.edu.vn",
+                'group': group,
+                'vlan': vlan_map.get(group, '20'),
+                'status': 'quarantined' if group == 'quarantine' else 'active'
+            }
+        finally:
+            conn.unbind()
+
     def user_exists(self, uid: str) -> bool:
         """Kiểm tra tài khoản có thực sự tồn tại trong cây thư mục OpenLDAP hay không."""
         conn = self._get_connection()
@@ -129,12 +173,16 @@ class LDAPClient:
                 'description': desc or f"User {cn} - Group {group_name}"
             }
             conn.add(user_dn, attributes=attrs)
-            if not conn.result['result'] == 0:
+            if conn.result.get('result') != 0:
                 raise Exception(f"Failed to create LDAP user: {conn.result.get('description')}")
             
             # 2. Add user DN to the specified group
             group_dn = f"cn={group_name},{self.groups_dn}"
             conn.modify(group_dn, {'member': [(MODIFY_ADD, [user_dn])]})
+            if conn.result.get('result') not in (0, 68):
+                # Rollback user entry on failure
+                conn.delete(user_dn)
+                raise Exception(f"Failed to add user to group {group_name}: {conn.result.get('description')}")
             return True
         finally:
             conn.unbind()
@@ -156,15 +204,38 @@ class LDAPClient:
                 
             # 2. Delete user entry
             conn.delete(user_dn)
-            return True
+            return conn.result.get('result') in (0, 32)
         finally:
             conn.unbind()
 
-    def change_user_group(self, uid: str, new_group: str):
+    def change_user_group(self, uid: str, new_group: str) -> bool:
+        """
+        Chuyển nhóm người dùng trên OpenLDAP có kiểm tra kết quả chặt chẽ.
+        Đảm bảo không nuốt lỗi, thêm vào nhóm đích trước khi gỡ khỏi nhóm cũ.
+        """
         conn = self._get_connection()
         try:
             user_dn = f"uid={uid},{self.users_dn}"
-            # Remove from all current groups
+            target_group_dn = f"cn={new_group},{self.groups_dn}"
+
+            # 1. Kiểm tra nhóm đích có tồn tại trong OpenLDAP không
+            conn.search(
+                search_base=target_group_dn,
+                search_filter='(objectClass=groupOfNames)',
+                search_scope=BASE,
+                attributes=['cn']
+            )
+            if not conn.entries:
+                logging.error(f"[LDAP] Nhóm đích '{new_group}' không tồn tại trong DIT.")
+                return False
+
+            # 2. Thêm người dùng vào nhóm đích trước (result 0 = success, 68 = already member)
+            conn.modify(target_group_dn, {'member': [(MODIFY_ADD, [user_dn])]})
+            if conn.result.get('result') not in (0, 68):
+                logging.error(f"[LDAP] Không thể thêm {uid} vào nhóm {new_group}: {conn.result.get('description')}")
+                return False
+
+            # 3. Gỡ người dùng khỏi các nhóm khác
             conn.search(
                 search_base=self.groups_dn,
                 search_filter=f'(&(objectClass=groupOfNames)(member={user_dn}))',
@@ -173,12 +244,15 @@ class LDAPClient:
             )
             for g_entry in conn.entries:
                 g_dn = g_entry.entry_dn
-                conn.modify(g_dn, {'member': [(MODIFY_DELETE, [user_dn])]})
-                
-            # Add to new group
-            target_group_dn = f"cn={new_group},{self.groups_dn}"
-            conn.modify(target_group_dn, {'member': [(MODIFY_ADD, [user_dn])]})
+                if g_dn.lower() != target_group_dn.lower():
+                    conn.modify(g_dn, {'member': [(MODIFY_DELETE, [user_dn])]})
+                    if conn.result.get('result') not in (0, 16):
+                        logging.warning(f"[LDAP] Cảnh báo: Không thể gỡ {uid} khỏi {g_dn}: {conn.result.get('description')}")
+
             return True
+        except Exception as e:
+            logging.error(f"[LDAP] Lỗi nghiêm trọng khi chuyển nhóm cho {uid} sang {new_group}: {e}")
+            return False
         finally:
             conn.unbind()
 
@@ -189,3 +263,50 @@ class LDAPClient:
     def unquarantine_user(self, uid: str, target_group: str = 'sinhvien'):
         """Restore user from quarantine back to operational group."""
         return self.change_user_group(uid, target_group)
+
+    def get_user_by_email_or_uid(self, identifier: str) -> dict:
+        """Tra cứu thông tin người dùng từ OpenLDAP bằng username (uid) hoặc email."""
+        if not identifier or not isinstance(identifier, str):
+            return None
+        identifier = identifier.strip()
+        conn = self._get_connection()
+        try:
+            safe_id = identifier.replace('*', '').replace('(', '').replace(')', '').replace('\\', '')
+            conn.search(
+                search_base=self.users_dn,
+                search_filter=f'(|(uid={safe_id})(mail={safe_id}))',
+                search_scope=SUBTREE,
+                attributes=['uid', 'cn', 'sn', 'mail', 'description']
+            )
+            if not conn.entries:
+                return None
+            entry = conn.entries[0]
+            uid = str(entry.uid)
+            group = self.get_user_group(uid) or 'sinhvien'
+            return {
+                'uid': uid,
+                'cn': str(entry.cn) if entry.cn else uid,
+                'mail': str(entry.mail) if entry.mail else f"{uid}@ptit.edu.vn",
+                'group': group
+            }
+        finally:
+            conn.unbind()
+
+    def reset_user_password(self, uid: str, new_password: str) -> bool:
+        """
+        Đặt lại mật khẩu cho tài khoản người dùng trên OpenLDAP.
+        Tự động băm SSHA với muối ngẫu nhiên (RFC-compliant salted SHA-1).
+        """
+        if not uid or not new_password:
+            return False
+        conn = self._get_connection()
+        try:
+            user_dn = f"uid={uid},{self.users_dn}"
+            password_ssha = ssha_hash(new_password)
+            conn.modify(user_dn, {'userPassword': [(MODIFY_REPLACE, [password_ssha])]})
+            return conn.result.get('result') == 0
+        except Exception as e:
+            logging.error(f"[LDAP] Lỗi khi đổi mật khẩu cho {uid}: {e}")
+            return False
+        finally:
+            conn.unbind()

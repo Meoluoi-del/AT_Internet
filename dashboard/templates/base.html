@@ -59,6 +59,58 @@
 
             <!-- Nav Links -->
             <nav class="mt-6 px-4 space-y-1.5">
+                {% if current_role == 'user' %}
+                <!-- Menu Dịch vụ Người dùng (Sinh viên & Giảng viên) kiểu Hệ sinh thái Google -->
+                <div class="px-4 pb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">
+                    Hệ sinh thái Dịch vụ
+                </div>
+
+                {% if session.get('group') == 'quarantine' %}
+                <div class="mx-2 mb-2 p-2 rounded-xl bg-red-950/80 border border-red-600 text-center font-mono text-[10px] text-red-300 font-bold animate-pulse">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i>ĐANG CÁCH LY (VLAN 99)
+                </div>
+                {% endif %}
+
+                <a href="{{ url_for('sso_portal') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'sso_portal' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-key w-6 text-sm text-blue-400"></i>
+                    <span>Cổng SSO Launchpad</span>
+                </a>
+
+                <a href="{{ url_for('app_qldt') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if session.get('group') == 'quarantine' %}opacity-40 cursor-not-allowed text-zinc-600{% elif request.endpoint == 'app_qldt' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-graduation-cap w-6 text-sm {% if session.get('group') == 'quarantine' %}text-zinc-600{% else %}text-indigo-400{% endif %}"></i>
+                    <span>QLĐT / LMS</span>
+                    {% if session.get('group') == 'quarantine' %}<i class="fa-solid fa-lock text-[10px] ml-auto text-red-500"></i>{% endif %}
+                </a>
+
+                <a href="{{ url_for('app_elibrary') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if session.get('group') == 'quarantine' %}opacity-40 cursor-not-allowed text-zinc-600{% elif request.endpoint == 'app_elibrary' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-book-bookmark w-6 text-sm {% if session.get('group') == 'quarantine' %}text-zinc-600{% else %}text-emerald-400{% endif %}"></i>
+                    <span>Thư viện Số E-Library</span>
+                    {% if session.get('group') == 'quarantine' %}<i class="fa-solid fa-lock text-[10px] ml-auto text-red-500"></i>{% endif %}
+                </a>
+
+                <a href="{{ url_for('app_vpn') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if session.get('group') == 'quarantine' %}opacity-40 cursor-not-allowed text-zinc-600{% elif request.endpoint == 'app_vpn' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-network-wired w-6 text-sm {% if session.get('group') == 'quarantine' %}text-zinc-600{% else %}text-sky-400{% endif %}"></i>
+                    <span>Cổng VPN Zero-Trust</span>
+                    {% if session.get('group') == 'quarantine' %}<i class="fa-solid fa-lock text-[10px] ml-auto text-red-500"></i>{% endif %}
+                </a>
+
+                <a href="{{ url_for('app_webmail') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if session.get('group') == 'quarantine' %}opacity-40 cursor-not-allowed text-zinc-600{% elif request.endpoint == 'app_webmail' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-envelope w-6 text-sm {% if session.get('group') == 'quarantine' %}text-zinc-600{% else %}text-amber-400{% endif %}"></i>
+                    <span>Webmail PTIT</span>
+                    {% if session.get('group') == 'quarantine' %}<i class="fa-solid fa-lock text-[10px] ml-auto text-red-500"></i>{% endif %}
+                </a>
+
+                <div class="pt-2 pb-1 border-t border-zinc-900 mt-2">
+                    <p class="px-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Bảo mật Tài khoản</p>
+                </div>
+
+                <a href="{{ url_for('mfa_setup') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint in ['mfa_setup', 'mfa_verify'] %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
+                    <i class="fa-solid fa-shield-halved w-6 text-sm text-amber-400"></i>
+                    <span>Cài đặt 2FA / MFA</span>
+                </a>
+
+                {% else %}
+                <!-- Menu Quản trị Hệ thống (Admin & Auditor) -->
                 <a href="{{ url_for('index') }}" class="flex items-center px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all {% if request.endpoint == 'index' %}bg-white text-black shadow-lg shadow-white/5 font-extrabold{% else %}text-zinc-400 hover:bg-zinc-900 hover:text-white{% endif %}">
                     <i class="fa-solid fa-chart-pie w-6 text-sm"></i>
                     <span>Tổng quan (Overview)</span>
@@ -103,6 +155,7 @@
                     <i class="fa-solid fa-key w-6 text-sm text-blue-400"></i>
                     <span>Cổng SSO Tập trung</span>
                 </a>
+                {% endif %}
             </nav>
         </div>
 
@@ -111,15 +164,16 @@
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white font-bold">
-                        <i class="fa-solid fa-user-shield text-xs"></i>
+                        <i class="fa-solid {% if current_role == 'admin' %}fa-user-shield{% elif current_role == 'auditor' %}fa-user-check{% else %}fa-user-graduate{% endif %} text-xs"></i>
                     </div>
                     <div>
-                        <p class="text-xs font-bold text-white leading-tight font-mono">{{ current_user }}</p>
-                        <!-- Role attention level: Admin = Red/Orange attention, Auditor = Orange/Amber attention -->
+                        <p class="text-xs font-bold text-white leading-tight font-mono">{{ session.get('display_name') or current_user }}</p>
+                        <!-- Role attention level: Admin = Red/Orange attention, Auditor = Orange/Amber attention, User = Blue -->
                         <span class="inline-block text-[10px] px-2 py-0.5 rounded font-extrabold uppercase tracking-wider mt-0.5
                             {% if current_role == 'admin' %}bg-orange-500/20 text-orange-400 border border-orange-500/40
-                            {% else %}bg-amber-500/20 text-amber-300 border border-amber-500/40{% endif %}">
-                            <i class="fa-solid {% if current_role == 'admin' %}fa-crown{% else %}fa-eye{% endif %} text-[9px] mr-1"></i>{{ current_role }}
+                            {% elif current_role == 'auditor' %}bg-amber-500/20 text-amber-300 border border-amber-500/40
+                            {% else %}bg-blue-500/20 text-blue-300 border border-blue-500/40{% endif %}">
+                            <i class="fa-solid {% if current_role == 'admin' %}fa-crown{% elif current_role == 'auditor' %}fa-eye{% else %}fa-user-graduate{% endif %} text-[9px] mr-1"></i>{{ current_role }}
                         </span>
                     </div>
                 </div>

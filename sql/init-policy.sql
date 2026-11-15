@@ -288,6 +288,32 @@ CREATE TABLE IF NOT EXISTS sso_auth_codes (
     expires_at DATETIME NOT NULL
 ) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
 
+-- Bảng quản lý phiên SSO & Single Logout (SLO - Chống Session Replay Attack)
+CREATE TABLE IF NOT EXISTS sso_sessions (
+    session_id VARCHAR(64) PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    ip_address VARCHAR(45) NULL,
+    user_agent VARCHAR(255) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_activity DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_active TINYINT(1) DEFAULT 1,
+    logged_out_at DATETIME NULL
+) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sso_client_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL,
+    client_id VARCHAR(64) NOT NULL,
+    username VARCHAR(64) NOT NULL,
+    access_token_jti VARCHAR(64) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active TINYINT(1) DEFAULT 1,
+    revoked_at DATETIME NULL,
+    INDEX (session_id),
+    INDEX (client_id),
+    INDEX (access_token_jti)
+) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO sso_clients (client_id, client_name, client_secret, redirect_uri, description, icon_class)
 VALUES 
 ('qldt_lms', 'Cổng Đào tạo & Quản lý Học tập (QLĐT / LMS)', 'sec_qldt_9921', 'http://qldt.ptit.edu.vn/sso/callback', 'Hệ thống quản lý điểm thi, thời khóa biểu và lớp học trực tuyến LMS', 'fa-solid fa-graduation-cap'),
@@ -343,4 +369,22 @@ FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'INTEGRITY VIOLATION: qu
 DROP TRIGGER IF EXISTS trg_quarantine_events_no_delete;
 CREATE TRIGGER trg_quarantine_events_no_delete BEFORE DELETE ON quarantine_events 
 FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'INTEGRITY VIOLATION: quarantine_events is strictly append-only. DELETE is prohibited.';
+
+-- ====================================================================
+-- 11. BẢNG password_reset_tokens (QUẢN LÝ TOKEN QUÊN MẬT KHẨU QUA EMAIL)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    email VARCHAR(128) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    is_used TINYINT(1) DEFAULT 0,
+    used_at DATETIME NULL,
+    ip_address VARCHAR(45) NULL,
+    INDEX (token_hash),
+    INDEX (username),
+    INDEX (expires_at)
+) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
 
