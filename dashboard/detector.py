@@ -36,12 +36,21 @@ class ActiveDefenseDetector:
             conn = get_db_connection()
             with conn.cursor() as cursor:
                 # Query failed attempts in the last window seconds (e.g. 180s)
+                # QUAN TRỌNG: Chỉ đếm Access-Reject phát sinh SAU mốc thời gian giải phóng (RELEASE) gần nhất!
+                # Giữ nguyên radpostauth bất biến làm bằng chứng điều tra số, không sửa hay xoá.
                 cursor.execute("""
-                    SELECT username, COUNT(*) as failed_count, MAX(authdate) as last_attempt
-                    FROM radpostauth
-                    WHERE reply = 'Access-Reject'
-                      AND authdate >= NOW() - INTERVAL %s SECOND
-                    GROUP BY username
+                    SELECT r.username, COUNT(*) as failed_count, MAX(r.authdate) as last_attempt
+                    FROM radpostauth r
+                    LEFT JOIN (
+                        SELECT username, MAX(event_time) AS last_release
+                        FROM quarantine_events
+                        WHERE event_type = 'RELEASE'
+                        GROUP BY username
+                    ) qe ON r.username = qe.username
+                    WHERE r.reply = 'Access-Reject'
+                      AND r.authdate >= NOW() - INTERVAL %s SECOND
+                      AND (qe.last_release IS NULL OR r.authdate > qe.last_release)
+                    GROUP BY r.username
                     HAVING failed_count >= %s
                 """, (Config.BRUTEFORCE_WINDOW_SECONDS, Config.BRUTEFORCE_THRESHOLD))
                 suspicious_users = cursor.fetchall()
@@ -54,6 +63,10 @@ class ActiveDefenseDetector:
                     if not username or username in ['radius-svc', 'admin01']:
                         continue
 
+                    # Bỏ qua nếu tài khoản không tồn tại trong OpenLDAP
+                    if not self.ldap_client.user_exists(username):
+                        continue
+
                     # Check current group of user in LDAP
                     current_group = self.ldap_client.get_user_group(username)
                     if current_group and current_group != 'quarantine':
@@ -62,7 +75,17 @@ class ActiveDefenseDetector:
                         # 1. Move to quarantine group in LDAP
                         self.ldap_client.quarantine_user(username)
                         
-                        # 2. Record in Audit Log
+                        # 2. Ghi nhận sự kiện cách ly vào quarantine_events (Append-Only)
+                        DBManager.record_quarantine_event(
+                            username=username,
+                            event_type='QUARANTINE',
+                            reason=f"Vượt ngưỡng brute-force {count} lần trong {Config.BRUTEFORCE_WINDOW_SECONDS}s",
+                            failed_count=count,
+                            source='SYSTEM_ACTIVE_DEFENSE',
+                            previous_group=current_group
+                        )
+
+                        # 3. Record in Audit Log (Hash-Chain)
                         DBManager.add_audit_log(
                             actor="SYSTEM_ACTIVE_DEFENSE",
                             action="AUTO_QUARANTINE_BRUTEFORCE",
@@ -72,7 +95,7 @@ class ActiveDefenseDetector:
                             ip="127.0.0.1"
                         )
                         
-                        # 3. Add to recent alerts
+                        # 4. Add to recent alerts
                         alert_msg = {
                             'username': username,
                             'failed_count': count,
@@ -105,18 +128,25 @@ class ActiveDefenseDetector:
                 conn.close()
 
     def get_live_attacks(self):
-        """Lấy danh sách chi tiết các cuộc tấn công đang diễn ra trong cửa sổ 180s."""
+        """Lấy danh sách chi tiết các cuộc tấn công đang diễn ra trong cửa sổ 180s (chỉ tính sau lần giải phóng cuối)."""
         conn = None
         attacks = []
         try:
             conn = get_db_connection()
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT username, COUNT(*) as failed_count, MAX(authdate) as last_attempt
-                    FROM radpostauth
-                    WHERE reply = 'Access-Reject'
-                      AND authdate >= NOW() - INTERVAL %s SECOND
-                    GROUP BY username
+                    SELECT r.username, COUNT(*) as failed_count, MAX(r.authdate) as last_attempt
+                    FROM radpostauth r
+                    LEFT JOIN (
+                        SELECT username, MAX(event_time) AS last_release
+                        FROM quarantine_events
+                        WHERE event_type = 'RELEASE'
+                        GROUP BY username
+                    ) qe ON r.username = qe.username
+                    WHERE r.reply = 'Access-Reject'
+                      AND r.authdate >= NOW() - INTERVAL %s SECOND
+                      AND (qe.last_release IS NULL OR r.authdate > qe.last_release)
+                    GROUP BY r.username
                     ORDER BY last_attempt DESC
                 """, (Config.BRUTEFORCE_WINDOW_SECONDS,))
                 rows = cursor.fetchall()
@@ -125,6 +155,10 @@ class ActiveDefenseDetector:
                     if not u or u in ['radius-svc', 'admin01']:
                         continue
                     
+                    # Bỏ qua tài khoản không tồn tại trong OpenLDAP (tránh cảnh báo user không có thật)
+                    if not self.ldap_client.user_exists(u):
+                        continue
+
                     grp = self.ldap_client.get_user_group(u)
                     is_quarantined = (grp == 'quarantine')
                     attacks.append({

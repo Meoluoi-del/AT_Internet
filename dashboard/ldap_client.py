@@ -82,6 +82,20 @@ class LDAPClient:
         finally:
             conn.unbind()
 
+    def user_exists(self, uid: str) -> bool:
+        """Kiểm tra tài khoản có thực sự tồn tại trong cây thư mục OpenLDAP hay không."""
+        conn = self._get_connection()
+        try:
+            conn.search(
+                search_base=self.users_dn,
+                search_filter=f'(uid={uid})',
+                search_scope=SUBTREE,
+                attributes=['uid']
+            )
+            return len(conn.entries) > 0
+        finally:
+            conn.unbind()
+
     def get_user_group(self, uid: str):
         conn = self._get_connection()
         try:

@@ -177,22 +177,26 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
 
-        # 2. Kiểm tra xem Tài khoản username có đang bị tạm khóa hay không
-        acc_lock = DBManager.check_dashboard_account_lock(username)
-        if acc_lock['is_locked']:
-            DBManager.add_audit_log(
-                actor=username or "UNKNOWN",
-                action="DASHBOARD_ACCOUNT_BLOCKED",
-                target="DASHBOARD",
-                old_val=f"IP: {client_ip}",
-                new_val=f"Tài khoản đang bị khóa. Còn {acc_lock['minutes_left']} phút.",
-                ip=client_ip
-            )
-            flash(f'Tài khoản {username} đang bị tạm khóa. Vui lòng thử lại sau {acc_lock["minutes_left"]} phút!', 'danger')
-            return render_template('login.html', is_account_locked=True, lock_minutes=acc_lock['minutes_left'])
+        # Kiểm tra xem Tài khoản username có tồn tại trong hệ thống (ADMIN_USERS) hay không
+        user_exists = username in ADMIN_USERS
+
+        # 2. Kiểm tra xem Tài khoản username có đang bị tạm khóa hay không (chỉ kiểm tra nếu tài khoản tồn tại)
+        if user_exists:
+            acc_lock = DBManager.check_dashboard_account_lock(username)
+            if acc_lock['is_locked']:
+                DBManager.add_audit_log(
+                    actor=username,
+                    action="DASHBOARD_ACCOUNT_BLOCKED",
+                    target="DASHBOARD",
+                    old_val=f"IP: {client_ip}",
+                    new_val=f"Tài khoản đang bị khóa. Còn {acc_lock['minutes_left']} phút.",
+                    ip=client_ip
+                )
+                flash(f'Tài khoản {username} đang bị tạm khóa. Vui lòng thử lại sau {acc_lock["minutes_left"]} phút!', 'danger')
+                return render_template('login.html', is_account_locked=True, lock_minutes=acc_lock['minutes_left'])
 
         # 3. Kiểm tra thông tin xác thực
-        if username in ADMIN_USERS and ADMIN_USERS[username]['password'] == password:
+        if user_exists and ADMIN_USERS[username]['password'] == password:
             # Đăng nhập hợp lệ -> Giải phóng số lần sai của IP và tài khoản
             DBManager.record_dashboard_login_success(username, client_ip)
 
@@ -231,39 +235,64 @@ def login():
                 return redirect(next_url)
             return redirect(url_for('index'))
         else:
-            # Nhập sai mật khẩu hoặc tên đăng nhập -> Ghi nhận thất bại và kích hoạt khóa kép khi đạt 5 lần
-            fail_info = DBManager.record_dashboard_login_failure(username, client_ip, max_attempts=5, lock_minutes=60)
-            
-            if fail_info['is_locked']:
-                # Lần thứ 5: Khóa cả Tài khoản và Địa chỉ IP trong 1 tiếng (60 phút)
-                DBManager.add_audit_log(
-                    actor=username or "UNKNOWN",
-                    action="DASHBOARD_ACCOUNT_LOCKED",
-                    target="DASHBOARD",
-                    old_value=f"Nhập sai {fail_info['failed_attempts']} lần liên tiếp từ IP {client_ip}",
-                    new_value=f"Khóa tài khoản {username} trong 60 phút",
-                    ip=client_ip
-                )
-                DBManager.add_audit_log(
-                    actor=client_ip,
-                    action="DASHBOARD_IP_BLOCKED",
-                    target="DASHBOARD",
-                    old_value=f"Thử dò tài khoản: {username}",
-                    new_value=f"Chặn địa chỉ IP {client_ip} trong 60 phút",
-                    ip=client_ip
-                )
-                flash('Bạn đã nhập sai mật khẩu quá 5 lần! Tài khoản và địa chỉ IP của bạn đã bị khóa trong 1 tiếng.', 'danger')
+            # Nhập sai: Phân biệt tài khoản có tồn tại và tài khoản không tồn tại
+            if user_exists:
+                # Tài khoản TỒN TẠI: Ghi nhận số lần sai cho tài khoản và IP kèm cảnh báo đếm ngược
+                fail_info = DBManager.record_dashboard_login_failure(username, client_ip, max_attempts=5, lock_minutes=60)
+                if fail_info['is_locked']:
+                    # Lần thứ 5: Khóa cả Tài khoản và Địa chỉ IP trong 1 tiếng (60 phút)
+                    DBManager.add_audit_log(
+                        actor=username,
+                        action="DASHBOARD_ACCOUNT_LOCKED",
+                        target="DASHBOARD",
+                        old_value=f"Nhập sai {fail_info['failed_attempts']} lần liên tiếp từ IP {client_ip}",
+                        new_value=f"Khóa tài khoản {username} trong 60 phút",
+                        ip=client_ip
+                    )
+                    DBManager.add_audit_log(
+                        actor=client_ip,
+                        action="DASHBOARD_IP_BLOCKED",
+                        target="DASHBOARD",
+                        old_value=f"Thử dò tài khoản: {username}",
+                        new_value=f"Chặn địa chỉ IP {client_ip} trong 60 phút",
+                        ip=client_ip
+                    )
+                    flash('Bạn đã nhập sai mật khẩu quá 5 lần! Tài khoản và địa chỉ IP của bạn đã bị khóa trong 1 tiếng.', 'danger')
+                else:
+                    rem = fail_info['remaining_attempts']
+                    DBManager.add_audit_log(
+                        actor=username,
+                        action="DASHBOARD_LOGIN_FAILED",
+                        target="DASHBOARD",
+                        old_value=f"Lần sai thứ {fail_info['failed_attempts']}/5",
+                        new_value=f"Còn {rem} lần thử trước khi bị khóa",
+                        ip=client_ip
+                    )
+                    flash(f'Sai tên đăng nhập hoặc mật khẩu! Bạn còn {rem} lần thử trước khi tài khoản bị khóa.', 'danger')
             else:
-                rem = fail_info['remaining_attempts']
-                DBManager.add_audit_log(
-                    actor=username or "UNKNOWN",
-                    action="DASHBOARD_LOGIN_FAILED",
-                    target="DASHBOARD",
-                    old_value=f"Lần sai thứ {fail_info['failed_attempts']}/5",
-                    new_value=f"Còn {rem} lần thử trước khi bị khóa",
-                    ip=client_ip
-                )
-                flash(f'Sai tên đăng nhập hoặc mật khẩu! Bạn còn {rem} lần thử trước khi tài khoản bị khóa.', 'danger')
+                # Tài khoản KHÔNG TỒN TẠI:
+                # Tuyệt đối không tạo bản ghi khóa cho tài khoản ảo, chỉ ghi nhận thất bại cho IP
+                ip_fail_info = DBManager.record_dashboard_ip_failure(client_ip, target_user=username or "UNKNOWN", max_attempts=5, lock_minutes=60)
+                if ip_fail_info['is_blocked']:
+                    DBManager.add_audit_log(
+                        actor=client_ip,
+                        action="DASHBOARD_IP_BLOCKED",
+                        target="DASHBOARD",
+                        old_value=f"Dò quét username không tồn tại ({username}) 5 lần liên tiếp",
+                        new_value=f"Chặn địa chỉ IP {client_ip} trong 60 phút",
+                        ip=client_ip
+                    )
+                    flash('Địa chỉ IP của bạn đã bị tạm khóa 1 tiếng do nhập sai quá 5 lần!', 'danger')
+                else:
+                    DBManager.add_audit_log(
+                        actor="UNKNOWN",
+                        action="DASHBOARD_LOGIN_FAILED",
+                        target="DASHBOARD",
+                        old_value=f"Username không tồn tại: {username}",
+                        new_value=f"IP {client_ip} thử sai {ip_fail_info['failed_attempts']}/5",
+                        ip=client_ip
+                    )
+                    flash('Sai tên đăng nhập hoặc mật khẩu!', 'danger')
 
     return render_template('login.html')
 
@@ -704,6 +733,17 @@ def user_quarantine(uid):
     try:
         old_group = ldap_client.get_user_group(uid)
         ldap_client.quarantine_user(uid)
+        
+        # Ghi nhận sự kiện cách ly vào bảng quarantine_events (Append-only)
+        DBManager.record_quarantine_event(
+            username=uid,
+            event_type='QUARANTINE',
+            reason='Cách ly thủ công bởi quản trị viên',
+            failed_count=0,
+            source=session.get('username') or 'admin',
+            previous_group=old_group
+        )
+
         DBManager.add_audit_log(
             actor=session.get('username'),
             action="MANUAL_QUARANTINE",
@@ -728,20 +768,18 @@ def user_unlock(uid):
         # 1. Xóa alert của tài khoản này khỏi recent_alerts
         detector_instance.recent_alerts = [a for a in detector_instance.recent_alerts if a.get('username') != uid]
         
-        # 2. Đánh dấu các reject cũ trong radpostauth để tránh bị quarantine lại ngay lập tức
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    UPDATE radpostauth 
-                    SET reply = 'Access-Reject-Resolved' 
-                    WHERE username = %s AND reply = 'Access-Reject'
-                """, (uid,))
-        except Exception:
-            pass
-        finally:
-            conn.close()
+        # 2. Ghi nhận sự kiện giải phóng vào bảng quarantine_events (Append-only)
+        # radpostauth được bảo tồn nguyên vẹn làm bằng chứng điều tra số, không sửa hay xoá.
+        DBManager.record_quarantine_event(
+            username=uid,
+            event_type='RELEASE',
+            reason=f'Mở khóa bởi quản trị viên và khôi phục về nhóm {target_group}',
+            failed_count=0,
+            source=session.get('username') or 'admin',
+            previous_group='quarantine'
+        )
 
+        # 3. Ghi log kiểm toán (Hash-Chain chống chối bỏ)
         DBManager.add_audit_log(
             actor=session.get('username'),
             action="UNLOCK_USER",
@@ -844,7 +882,8 @@ def sessions_view():
 @login_required
 def audit_view():
     audit_logs = DBManager.get_audit_logs(limit=150)
-    return render_template('audit.html', audit_logs=audit_logs)
+    audit_integrity = DBManager.verify_audit_chain()
+    return render_template('audit.html', audit_logs=audit_logs, audit_integrity=audit_integrity)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

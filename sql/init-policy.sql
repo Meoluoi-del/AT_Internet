@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS radpostauth (
   username varchar(64) NOT NULL default '',
   pass varchar(64) NOT NULL default '',
   reply varchar(32) NOT NULL default '',
-  authdate timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  authdate timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   class varchar(64) default NULL,
   PRIMARY KEY (id),
   KEY username (username),
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS policy_matrix (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10. BẢNG audit_logs (LƯU VẾT THAO TÁC CỦA ADMIN THEO USER STORY US08)
+-- 10. BẢNG audit_logs (LƯU VẾT THAO TÁC CỦA ADMIN THEO USER STORY US08 - CHUỖI HASH-CHAIN CHỐNG CHỐI BỎ)
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     actor_username VARCHAR(64) NOT NULL COMMENT 'Admin thực hiện hành động',
@@ -150,8 +150,24 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     old_value TEXT DEFAULT NULL COMMENT 'Giá trị cũ trước khi sửa',
     new_value TEXT DEFAULT NULL COMMENT 'Giá trị mới sau khi sửa',
     ip_address VARCHAR(45) NOT NULL COMMENT 'IP của người thực hiện',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    prev_hash VARCHAR(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000' COMMENT 'Hash SHA-256 bản ghi trước (Cryptographic Hash-Chain)',
+    record_hash VARCHAR(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000' COMMENT 'Hash SHA-256 của bản ghi hiện tại'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. BẢNG quarantine_events (VÒNG ĐỜI CÁCH LY & GIẢI PHÓNG - BẢNG CHỨNG ĐIỀU TRA BẤT BIẾN)
+CREATE TABLE IF NOT EXISTS quarantine_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    event_type ENUM('QUARANTINE', 'RELEASE') NOT NULL COMMENT 'Loại sự kiện: QUARANTINE hoặc RELEASE',
+    reason TEXT COMMENT 'Lý do cách ly hoặc giải phóng',
+    failed_count INT DEFAULT 0 COMMENT 'Số lần xác thực thất bại tại thời điểm cách ly',
+    source VARCHAR(64) NOT NULL COMMENT 'Nguồn kích hoạt (SYSTEM_ACTIVE_DEFENSE, admin...)',
+    previous_group VARCHAR(64) DEFAULT NULL COMMENT 'Nhóm quyền trước khi thay đổi',
+    event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    INDEX idx_user_time (username, event_time),
+    INDEX idx_event_type (event_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 -- ====================================================================
@@ -219,9 +235,17 @@ INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES
 ('quarantine', 'Idle-Timeout', ':=', '300'),
 ('quarantine', 'Termination-Action', ':=', '1');
 
--- Ghi nhận sự kiện khởi tạo hệ thống
-INSERT INTO audit_logs (actor_username, action, target, new_value, ip_address)
-VALUES ('SYSTEM_INIT', 'INIT_DATABASE', 'SCHEMA_AND_POLICIES', 'Khoi tao thanh cong 4 nhom VLAN mac dinh', '127.0.0.1');
+-- Ghi nhận sự kiện khởi tạo hệ thống (với Genesis Hash)
+INSERT INTO audit_logs (actor_username, action, target, new_value, ip_address, prev_hash, record_hash)
+VALUES (
+    'SYSTEM_INIT', 
+    'INIT_DATABASE', 
+    'SCHEMA_AND_POLICIES', 
+    'Khoi tao thanh cong 4 nhom VLAN mac dinh', 
+    '127.0.0.1',
+    REPEAT('0', 64),
+    SHA2(CONCAT(REPEAT('0', 64), '|SYSTEM_INIT|INIT_DATABASE|SCHEMA_AND_POLICIES||Khoi tao thanh cong 4 nhom VLAN mac dinh|127.0.0.1|', DATE_FORMAT(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%i:%s')), 256)
+);
 
 -- ====================================================================
 -- 7. BẢNG user_mfa (XÁC THỰC ĐA NHÂN TỐ TOTP RFC 6238)
@@ -288,3 +312,32 @@ CREATE TABLE IF NOT EXISTS dashboard_ip_lockouts (
     last_attempt_at DATETIME NULL,
     last_target_user VARCHAR(64) NULL
 ) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
+
+-- ====================================================================
+-- 10. TRIGGER BẢO VỆ TÍNH BẤT BIẾN (APPEND-ONLY INTEGRITY ENFORCEMENT)
+-- Chặn tuyệt đối mọi thao tác UPDATE / DELETE đối với nhật ký điều tra
+-- ====================================================================
+DROP TRIGGER IF EXISTS trg_audit_logs_no_update;
+CREATE TRIGGER trg_audit_logs_no_update BEFORE UPDATE ON audit_logs 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'SECURITY AUDIT VIOLATION: audit_logs is strictly append-only. UPDATE is prohibited.';
+
+DROP TRIGGER IF EXISTS trg_audit_logs_no_delete;
+CREATE TRIGGER trg_audit_logs_no_delete BEFORE DELETE ON audit_logs 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'SECURITY AUDIT VIOLATION: audit_logs is strictly append-only. DELETE is prohibited.';
+
+DROP TRIGGER IF EXISTS trg_radpostauth_no_update;
+CREATE TRIGGER trg_radpostauth_no_update BEFORE UPDATE ON radpostauth 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FORENSIC INTEGRITY VIOLATION: radpostauth is strictly append-only. UPDATE is prohibited.';
+
+DROP TRIGGER IF EXISTS trg_radpostauth_no_delete;
+CREATE TRIGGER trg_radpostauth_no_delete BEFORE DELETE ON radpostauth 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FORENSIC INTEGRITY VIOLATION: radpostauth is strictly append-only. DELETE is prohibited.';
+
+DROP TRIGGER IF EXISTS trg_quarantine_events_no_update;
+CREATE TRIGGER trg_quarantine_events_no_update BEFORE UPDATE ON quarantine_events 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'INTEGRITY VIOLATION: quarantine_events is strictly append-only. UPDATE is prohibited.';
+
+DROP TRIGGER IF EXISTS trg_quarantine_events_no_delete;
+CREATE TRIGGER trg_quarantine_events_no_delete BEFORE DELETE ON quarantine_events 
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'INTEGRITY VIOLATION: quarantine_events is strictly append-only. DELETE is prohibited.';
+

@@ -1,3 +1,5 @@
+import hashlib
+from datetime import datetime
 import pymysql
 from pymysql.cursors import DictCursor
 from config import Config
@@ -103,16 +105,154 @@ class DBManager:
             conn.close()
 
     @staticmethod
+    def compute_record_hash(prev_hash: str, actor: str, action: str, target: str, old_val: str, new_val: str, ip: str, created_at: str) -> str:
+        """
+        Tính toán SHA-256 hash cho bản ghi audit log.
+        Bao gồm toàn bộ dữ liệu nghiệp vụ và prev_hash để tạo thành chuỗi liên kết (Hash-Chain).
+        """
+        raw_payload = f"{prev_hash}|{actor}|{action}|{target}|{old_val or ''}|{new_val or ''}|{ip}|{created_at}"
+        return hashlib.sha256(raw_payload.encode('utf-8')).hexdigest()
+
+    @staticmethod
     def add_audit_log(actor: str, action: str, target: str, old_val: str = "", new_val: str = "", ip: str = "127.0.0.1", old_value: str = "", new_value: str = ""):
         conn = get_db_connection()
         try:
             final_old = old_val or old_value or ""
             final_new = new_val or new_value or ""
+            now_dt = datetime.now()
+            created_at_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+            with conn.cursor() as cursor:
+                # Lấy record_hash của bản ghi gần nhất để tạo liên kết Hash-Chain
+                cursor.execute("SELECT record_hash FROM audit_logs ORDER BY id DESC LIMIT 1")
+                last_record = cursor.fetchone()
+                
+                if last_record and last_record.get('record_hash') and last_record['record_hash'] != '0'*64:
+                    prev_hash = last_record['record_hash']
+                else:
+                    prev_hash = '0' * 64
+                
+                record_hash = DBManager.compute_record_hash(
+                    prev_hash=prev_hash,
+                    actor=actor,
+                    action=action,
+                    target=target,
+                    old_val=final_old,
+                    new_val=final_new,
+                    ip=ip,
+                    created_at=created_at_str
+                )
+
+                cursor.execute("""
+                    INSERT INTO audit_logs (actor_username, action, target, old_value, new_value, ip_address, created_at, prev_hash, record_hash)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (actor, action, target, final_old, final_new, ip, created_at_str, prev_hash, record_hash))
+        finally:
+            conn.close()
+
+    @staticmethod
+    def verify_audit_chain():
+        """
+        Xác minh tính toàn vẹn của chuỗi Hash-Chain trong audit_logs.
+        Kiểm tra:
+        1. Liên kết prev_hash giữa các block liên tiếp (Chain continuity).
+        2. Tính khớp của dữ liệu nội dung với record_hash (Data integrity & non-repudiation).
+        """
+        conn = get_db_connection()
+        try:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO audit_logs (actor_username, action, target, old_value, new_value, ip_address)
+                    SELECT id, actor_username, action, target, old_value, new_value, 
+                           ip_address, created_at, prev_hash, record_hash
+                    FROM audit_logs
+                    ORDER BY id ASC
+                """)
+                rows = cursor.fetchall()
+
+                if not rows:
+                    return {'is_valid': True, 'total_records': 0, 'tampered_record_id': None, 'message': 'Chưa có bản ghi audit nào.'}
+
+                expected_prev = '0' * 64
+                for row in rows:
+                    row_id = row['id']
+                    # 1. Kiểm tra prev_hash có khớp với hash bản ghi trước không
+                    if row['prev_hash'] != expected_prev:
+                        return {
+                            'is_valid': False,
+                            'total_records': len(rows),
+                            'tampered_record_id': row_id,
+                            'message': f"Lỗi liên kết chuỗi tại Record #{row_id}: prev_hash ({row['prev_hash'][:16]}...) không khớp ({expected_prev[:16]}...)"
+                        }
+
+                    # 2. Định dạng created_at
+                    cat = row['created_at']
+                    if hasattr(cat, 'strftime'):
+                        created_at_str = cat.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        created_at_str = str(cat)
+
+                    # 3. Tính lại hash
+                    recomputed = DBManager.compute_record_hash(
+                        prev_hash=row['prev_hash'],
+                        actor=row['actor_username'],
+                        action=row['action'],
+                        target=row['target'],
+                        old_val=row['old_value'] or '',
+                        new_val=row['new_value'] or '',
+                        ip=row['ip_address'],
+                        created_at=created_at_str
+                    )
+
+                    if recomputed != row['record_hash']:
+                        return {
+                            'is_valid': False,
+                            'total_records': len(rows),
+                            'tampered_record_id': row_id,
+                            'message': f"Bản ghi Record #{row_id} đã bị làm giả hoặc sửa đổi! Recomputed ({recomputed[:16]}...) != stored ({row['record_hash'][:16]}...)"
+                        }
+
+                    expected_prev = row['record_hash']
+
+                return {
+                    'is_valid': True,
+                    'total_records': len(rows),
+                    'tampered_record_id': None,
+                    'message': f"Toàn bộ {len(rows)} bản ghi audit log hoàn toàn nguyên vẹn, chuỗi hash SHA-256 hợp lệ."
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_quarantine_event(username: str, event_type: str, reason: str = "", failed_count: int = 0, source: str = "SYSTEM_ACTIVE_DEFENSE", previous_group: str = None):
+        """Ghi nhận sự kiện cách ly (QUARANTINE) hoặc giải phóng (RELEASE) vào bảng quarantine_events (Append-only)."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO quarantine_events (username, event_type, reason, failed_count, source, previous_group)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (actor, action, target, final_old, final_new, ip))
+                """, (username, event_type, reason, failed_count, source, previous_group))
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_quarantine_events(username: str = None, limit: int = 50):
+        """Lấy lịch sử sự kiện cách ly và giải phóng."""
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                if username:
+                    cursor.execute("""
+                        SELECT * FROM quarantine_events
+                        WHERE username = %s
+                        ORDER BY event_time DESC LIMIT %s
+                    """, (username, limit))
+                else:
+                    cursor.execute("""
+                        SELECT * FROM quarantine_events
+                        ORDER BY event_time DESC LIMIT %s
+                    """, (limit,))
+                return cursor.fetchall()
         finally:
             conn.close()
 
@@ -381,6 +521,52 @@ class DBManager:
                     'seconds_left': 0,
                     'minutes_left': 0,
                     'failed_attempts': row.get('failed_attempts', 0) or 0
+                }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def record_dashboard_ip_failure(ip_address: str, target_user: str = "UNKNOWN", max_attempts: int = 5, lock_minutes: int = 60) -> dict:
+        """
+        Ghi nhận lần đăng nhập sai của IP khi thử username không tồn tại trong hệ thống.
+        Chỉ theo dõi và khóa IP, tuyệt đối không tạo bản ghi khóa cho tài khoản không tồn tại.
+        """
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                new_ip_fails = 1
+                if ip_address:
+                    cursor.execute("SELECT failed_attempts FROM dashboard_ip_lockouts WHERE ip_address = %s", (ip_address,))
+                    row_ip = cursor.fetchone()
+                    if row_ip:
+                        new_ip_fails = (row_ip['failed_attempts'] or 0) + 1
+                    
+                    if new_ip_fails >= max_attempts:
+                        cursor.execute("""
+                            INSERT INTO dashboard_ip_lockouts (ip_address, failed_attempts, blocked_until, last_attempt_at, last_target_user)
+                            VALUES (%s, %s, DATE_ADD(NOW(), INTERVAL %s MINUTE), NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                blocked_until = VALUES(blocked_until),
+                                last_attempt_at = VALUES(last_attempt_at),
+                                last_target_user = VALUES(last_target_user)
+                        """, (ip_address, new_ip_fails, lock_minutes, target_user))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO dashboard_ip_lockouts (ip_address, failed_attempts, blocked_until, last_attempt_at, last_target_user)
+                            VALUES (%s, %s, NULL, NOW(), %s)
+                            ON DUPLICATE KEY UPDATE 
+                                failed_attempts = VALUES(failed_attempts),
+                                last_attempt_at = VALUES(last_attempt_at),
+                                last_target_user = VALUES(last_target_user)
+                        """, (ip_address, new_ip_fails, target_user))
+
+                is_blocked = (new_ip_fails >= max_attempts)
+                return {
+                    'is_blocked': is_blocked,
+                    'failed_attempts': new_ip_fails,
+                    'remaining_attempts': max(0, max_attempts - new_ip_fails),
+                    'lock_minutes': lock_minutes
                 }
         finally:
             conn.close()
