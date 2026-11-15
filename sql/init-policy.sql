@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS sso_clients (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id VARCHAR(64) NOT NULL UNIQUE,
     client_name VARCHAR(128) NOT NULL,
-    client_secret VARCHAR(128) NOT NULL,
+    client_secret VARCHAR(255) NOT NULL,
     redirect_uri VARCHAR(255) NOT NULL,
     description VARCHAR(255) DEFAULT '',
     icon_class VARCHAR(64) DEFAULT 'fa-solid fa-cube',
@@ -282,6 +282,9 @@ CREATE TABLE IF NOT EXISTS sso_auth_codes (
     client_id VARCHAR(64) NOT NULL,
     username VARCHAR(64) NOT NULL,
     redirect_uri VARCHAR(255) NOT NULL,
+    code_challenge VARCHAR(128) NULL,
+    code_challenge_method VARCHAR(10) NULL,
+    nonce VARCHAR(128) NULL,
     expires_at DATETIME NOT NULL
 ) ENGINE = INNODB DEFAULT CHARSET=utf8mb4;
 

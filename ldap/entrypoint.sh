@@ -7,12 +7,18 @@ if [ ! -f /var/lib/ldap/INITIALIZED_FLAG ]; then
     slapd -h "ldap://127.0.0.1:389/ ldapi:///" -u openldap -g openldap
     sleep 2
 
-    echo "[*] Setting olcRootPW..."
+    echo "[*] Setting olcRootPW and ACLs..."
     ldapmodify -Y EXTERNAL -H ldapi:/// << 'EOF' || true
 dn: olcDatabase={1}mdb,cn=config
 changetype: modify
 replace: olcRootPW
 olcRootPW: AdminPassword123!
+-
+replace: olcAccess
+olcAccess: {0}to * by dn.exact=gidNumber=0+uidNumber=0,cn=peercred,cn=external manage by * break
+olcAccess: {1}to attrs=userPassword by dn.exact="cn=radius-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn" read by self write by anonymous auth by * none
+olcAccess: {2}to attrs=shadowLastChange by self write by * read
+olcAccess: {3}to * by * read
 EOF
 
     echo "[*] Importing custom entries from init-ldap.ldif..."

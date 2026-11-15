@@ -10,10 +10,34 @@ from ldap_client import LDAPClient
 from models import DBManager, get_db_connection
 from detector import detector_instance
 from mfa import generate_secret, get_totp_code, verify_totp, verify_totp_detailed, get_totp_uri
-from sso import create_jwt, verify_jwt
+from sso import (
+    create_jwt, verify_jwt, get_jwks,
+    create_access_token, create_id_token,
+    verify_pkce, hash_client_secret, verify_client_secret
+)
+import hmac
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+def is_safe_redirect_url(target):
+    """
+    Kiểm tra URL chuyển hướng an toàn, ngăn chặn triệt để tấn công Open Redirect (CWE-601).
+    Từ chối tuyệt đối protocol-relative URLs (//evil.com), backslash evasion (/\evil.com, \evil.com),
+    và các URL có scheme hoặc netloc khác rỗng.
+    """
+    if not target or not isinstance(target, str):
+        return False
+    if target.startswith('//') or target.startswith('/\\') or target.startswith('\\'):
+        return False
+    parsed = urllib.parse.urlparse(target)
+    if parsed.netloc != '' or parsed.scheme != '':
+        return False
+    if not target.startswith('/'):
+        return False
+    if target.startswith('/login'):
+        return False
+    return True
 
 # ====================================================================
 # MULTI-TAB SESSION ISOLATION (HỖ TRỢ ĐĂNG NHẬP NHIỀU USER TRÊN CÁC TAB KHÁC NHAU)
@@ -231,7 +255,7 @@ def login():
             )
             flash(f'Chào mừng {session["display_name"]} đăng nhập thành công!', 'success')
             next_url = request.args.get('next')
-            if next_url and next_url.startswith('/') and not next_url.startswith('/login'):
+            if next_url and is_safe_redirect_url(next_url):
                 return redirect(next_url)
             return redirect(url_for('index'))
         else:
@@ -361,7 +385,7 @@ def mfa_verify():
                 ip=request.remote_addr
             )
             flash(f'Xác thực 2 lớp (MFA) thành công! Chào mừng {display_name}.', 'success')
-            if next_url and next_url.startswith('/') and not next_url.startswith('/login'):
+            if next_url and is_safe_redirect_url(next_url):
                 return redirect(next_url)
             return redirect(url_for('index'))
         else:
@@ -497,28 +521,64 @@ def oidc_discovery():
         "jwks_uri": f"{base_url}/oauth/jwks",
         "response_types_supported": ["code", "token", "id_token"],
         "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["HS256"],
+        "id_token_signing_alg_values_supported": ["RS256"],
+        "code_challenge_methods_supported": ["S256", "plain"],
         "scopes_supported": ["openid", "profile", "email", "groups", "vlan"],
         "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
-        "claims_supported": ["sub", "iss", "aud", "exp", "iat", "name", "email", "group", "vlan"]
+        "claims_supported": ["sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "name", "email", "group", "vlan", "at_hash"]
     })
+
+@app.route('/oauth/jwks')
+def oauth_jwks():
+    """JSON Web Key Set (RFC 7517). Cho phép client tải khóa công khai RSA để tự xác minh chữ ký RS256."""
+    return jsonify(get_jwks())
 
 @app.route('/oauth/authorize', methods=['GET', 'POST'])
 def oauth_authorize():
-    """OAuth 2.0 Authorization Endpoint (Authorization Code Flow)."""
+    """OAuth 2.0 Authorization Endpoint (Authorization Code Flow kèm PKCE & Nonce)."""
     client_id = request.args.get('client_id')
     redirect_uri = request.args.get('redirect_uri')
     state = request.args.get('state', '')
+    nonce = request.args.get('nonce')
+    code_challenge = request.args.get('code_challenge')
+    code_challenge_method = request.args.get('code_challenge_method')
     
     client = DBManager.get_sso_client(client_id)
     if not client:
         return jsonify({"error": "invalid_client", "error_description": "Client ID not registered in SSO directory"}), 400
 
+    # Khắc phục lỗ hổng redirect_uri:
+    # Nếu client truyền redirect_uri, PHẢI so khớp chính xác với URI đã đăng ký của client
+    registered_uris = [u.strip() for u in client['redirect_uri'].split(',') if u.strip()]
+    if redirect_uri:
+        if redirect_uri not in registered_uris:
+            return jsonify({
+                "error": "invalid_request",
+                "error_description": "redirect_uri mismatch with client registered URI"
+            }), 400
+        effective_redirect_uri = redirect_uri
+    else:
+        effective_redirect_uri = registered_uris[0] if registered_uris else client['redirect_uri']
+
+    if code_challenge and not code_challenge_method:
+        code_challenge_method = 'S256'
+    if code_challenge_method:
+        code_challenge_method = code_challenge_method.upper()
+        if code_challenge_method not in ['S256', 'PLAIN']:
+            return jsonify({"error": "invalid_request", "error_description": "Unsupported code_challenge_method"}), 400
+
     if not session.get('logged_in'):
         return redirect(url_for('login', next=request.url))
 
     username = session.get('username')
-    code = DBManager.create_auth_code(client_id, username, redirect_uri or client['redirect_uri'])
+    code = DBManager.create_auth_code(
+        client_id=client_id,
+        username=username,
+        redirect_uri=effective_redirect_uri,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+        nonce=nonce
+    )
     
     DBManager.add_audit_log(
         actor=username,
@@ -528,66 +588,116 @@ def oauth_authorize():
         ip=request.remote_addr
     )
 
-    target_uri = redirect_uri or client['redirect_uri']
-    delim = '&' if '?' in target_uri else '?'
-    return redirect(f"{target_uri}{delim}code={code}&state={state}")
+    delim = '&' if '?' in effective_redirect_uri else '?'
+    return redirect(f"{effective_redirect_uri}{delim}code={code}&state={state}")
 
 @app.route('/oauth/token', methods=['POST'])
 def oauth_token():
-    """OAuth 2.0 Token Endpoint (Đổi Authorization Code lấy JWT Access Token & ID Token)."""
+    """OAuth 2.0 Token Endpoint (Đổi Authorization Code lấy JWT Access Token & ID Token RS256)."""
     grant_type = request.form.get('grant_type')
     code = request.form.get('code')
     client_id = request.form.get('client_id')
     client_secret = request.form.get('client_secret')
 
+    # Hỗ trợ HTTP Basic Authentication cho Client Credentials
+    if not client_id and request.authorization:
+        client_id = request.authorization.username
+        client_secret = request.authorization.password
+
     if grant_type != 'authorization_code':
         return jsonify({"error": "unsupported_grant_type"}), 400
 
+    if not client_id:
+        return jsonify({"error": "invalid_client", "error_description": "Missing client_id"}), 400
+
     client = DBManager.get_sso_client(client_id)
-    if not client or client['client_secret'] != client_secret:
+    # Xác minh client_secret bằng hash an toàn và hmac.compare_digest chống Timing Attack
+    if not client or not verify_client_secret(client['client_secret'], client_secret):
         return jsonify({"error": "invalid_client", "error_description": "Bad client credentials"}), 401
 
     auth_record = DBManager.consume_auth_code(code, client_id)
     if not auth_record:
         return jsonify({"error": "invalid_grant", "error_description": "Authorization code expired or already consumed"}), 400
 
+    # Khắc phục lỗ hổng redirect_uri: Bắt buộc truyền redirect_uri và phải khớp chính xác với lần authorize
+    req_redirect_uri = request.form.get('redirect_uri')
+    if not req_redirect_uri or not hmac.compare_digest(req_redirect_uri, auth_record['redirect_uri']):
+        return jsonify({"error": "invalid_grant", "error_description": "redirect_uri mismatch or missing"}), 400
+
+    # Xác thực PKCE (RFC 7636) nếu code_challenge đã được đăng ký lúc authorize
+    if auth_record.get('code_challenge'):
+        code_verifier = request.form.get('code_verifier')
+        if not code_verifier:
+            return jsonify({"error": "invalid_grant", "error_description": "code_verifier required for PKCE-protected code"}), 400
+        if not verify_pkce(code_verifier, auth_record['code_challenge'], auth_record.get('code_challenge_method')):
+            return jsonify({"error": "invalid_grant", "error_description": "PKCE code_verifier validation failed"}), 400
+
     username = auth_record['username']
     group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
     vlan_map = {'quantri': 10, 'sinhvien': 20, 'giangvien': 30, 'quarantine': 99}
     vlan = vlan_map.get(group, 99)
 
-    token_payload = {
-        "sub": username,
-        "aud": client_id,
+    user_info = {
+        "username": username,
         "name": username,
         "email": f"{username}@ptit.edu.vn",
         "group": group,
         "vlan": vlan,
         "auth_time": int(time.time())
     }
-    secret_key = app.config['SECRET_KEY']
-    access_token = create_jwt(token_payload, secret_key, expires_in=3600)
-    id_token = create_jwt(token_payload, secret_key, expires_in=3600)
+
+    base_url = request.host_url.rstrip('/')
+    scope = request.form.get('scope', 'openid profile email groups vlan')
+
+    # Phân tách rõ ràng Payload Access Token và ID Token theo chuẩn RFC 6749 & OpenID Connect Core 1.0
+    access_token = create_access_token(
+        user_info=user_info,
+        client_id=client_id,
+        scope=scope,
+        expires_in=3600,
+        issuer=base_url
+    )
+    id_token = create_id_token(
+        user_info=user_info,
+        client_id=client_id,
+        nonce=auth_record.get('nonce'),
+        access_token=access_token,
+        expires_in=3600,
+        issuer=base_url
+    )
 
     return jsonify({
         "access_token": access_token,
         "token_type": "Bearer",
         "expires_in": 3600,
         "id_token": id_token,
-        "scope": "openid profile email groups vlan"
+        "scope": scope
     })
 
 @app.route('/oauth/userinfo')
 def oauth_userinfo():
-    """OpenID Connect UserInfo Endpoint."""
+    """OpenID Connect UserInfo Endpoint (Xác thực Access Token RS256 & kiểm tra Issuer/Audience)."""
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return jsonify({"error": "unauthorized", "error_description": "Bearer token required in Authorization header"}), 401
     
-    token = auth_header.split(' ', 1)[1]
+    token = auth_header.split(' ', 1)[1].strip()
     try:
-        claims = verify_jwt(token, app.config['SECRET_KEY'])
-        return jsonify(claims)
+        base_url = request.host_url.rstrip('/')
+        claims = verify_jwt(token, expected_iss=base_url)
+        
+        username = claims.get('sub')
+        group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+        vlan_map = {'quantri': 10, 'sinhvien': 20, 'giangvien': 30, 'quarantine': 99}
+        vlan = vlan_map.get(group, 99)
+
+        return jsonify({
+            "sub": username,
+            "name": username,
+            "email": f"{username}@ptit.edu.vn",
+            "group": group,
+            "vlan": vlan
+        })
     except Exception as e:
         return jsonify({"error": "invalid_token", "error_description": str(e)}), 401
 

@@ -694,17 +694,28 @@ class DBManager:
             conn.close()
 
     @staticmethod
-    def create_auth_code(client_id: str, username: str, redirect_uri: str, expires_in_sec: int = 300) -> str:
+    def create_auth_code(client_id: str, username: str, redirect_uri: str, code_challenge: str = None, code_challenge_method: str = None, nonce: str = None, expires_in_sec: int = 300) -> str:
         import secrets
         code = secrets.token_urlsafe(32)
         conn = get_db_connection()
         try:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO sso_auth_codes (code, client_id, username, redirect_uri, expires_at)
-                    VALUES (%s, %s, %s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))
-                """, (code, client_id, username, redirect_uri, expires_in_sec))
+                    INSERT INTO sso_auth_codes (code, client_id, username, redirect_uri, code_challenge, code_challenge_method, nonce, expires_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, DATE_ADD(NOW(), INTERVAL %s SECOND))
+                """, (code, client_id, username, redirect_uri, code_challenge, code_challenge_method, nonce, expires_in_sec))
                 return code
+        finally:
+            conn.close()
+
+    @staticmethod
+    def update_sso_client_secret(client_id: str, hashed_secret: str):
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE sso_clients SET client_secret = %s WHERE client_id = %s
+                """, (hashed_secret, client_id))
         finally:
             conn.close()
 

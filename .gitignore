@@ -40,3 +40,7 @@ ENV/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Secrets & Private Keys
+dashboard/keys/
+*.pem

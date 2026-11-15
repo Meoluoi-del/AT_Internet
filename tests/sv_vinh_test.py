@@ -16,7 +16,7 @@ def simulate_bruteforce_attack(target_user='sv_vinh', attempts=1000):
     
     found_success = False
 
-    for i in range(100, attempts + 1):
+    for i in range(120, attempts + 1):
         fake_pass = f"{i}"
         res = send_radius_auth('127.0.0.1', 1812, 'testing123', target_user, fake_pass)
         
