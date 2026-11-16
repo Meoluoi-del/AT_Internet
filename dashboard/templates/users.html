@@ -316,7 +316,8 @@
                                 {% if u.group == 'quarantine' %}
                                 <!-- Mở khóa tài khoản: Nút VÀNG / HỔ PHÁCH (Mở modal chọn nhóm khôi phục) -->
                                 <button type="button" 
-                                    onclick="openUnlockModal('{{ u.uid }}', '{{ u.cn|escape }}', '{{ u.group }}')"
+                                    data-uid="{{ u.uid }}" data-cn="{{ u.cn }}" data-group="{{ u.group }}"
+                                    onclick="openUnlockModal(this.dataset.uid, this.dataset.cn, this.dataset.group)"
                                     title="Mở khóa tài khoản và khôi phục quyền truy cập" 
                                     class="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm transition-all inline-flex items-center">
                                     <i class="fa-solid fa-key mr-1"></i> Mở khóa

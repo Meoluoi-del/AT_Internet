@@ -284,6 +284,13 @@
         const sid = '{{ sid }}' || new URLSearchParams(window.location.search).get('sid') || '';
         const alertsContainer = document.getElementById('liveAlertsContainer');
 
+        function escapeHtml(str) {
+            if (!str) return '';
+            const p = document.createElement('p');
+            p.textContent = str;
+            return p.innerHTML;
+        }
+
         async function fetchLiveStatus() {
             try {
                 const res = await fetch('/api/live-status' + (sid ? ('?sid=' + encodeURIComponent(sid)) : ''));
@@ -303,8 +310,8 @@
 
                     if (alerts.length > 0 || quarantinedAttacks.length > 0) {
                         const topAlert = (alerts.length > 0) ? alerts[0] : quarantinedAttacks[0];
-                        const uname = topAlert.username;
-                        const fCount = topAlert.failed_count;
+                        const uname = escapeHtml(topAlert.username);
+                        const fCount = Number(topAlert.failed_count) || 0;
                         bannerHtml = `
                         <div class="bg-red-950 border-b border-red-700/80 text-white px-8 py-3 flex items-center justify-between shadow-2xl animate-pulse">
                             <div class="flex items-center space-x-3 text-xs md:text-sm font-bold text-red-200">
@@ -324,9 +331,9 @@
                         </div>`;
                     } else if (ongoingAttacks.length > 0) {
                         const topOngoing = ongoingAttacks[0];
-                        const uname = topOngoing.username;
-                        const fCount = topOngoing.failed_count;
-                        const threshold = topOngoing.threshold || 6;
+                        const uname = escapeHtml(topOngoing.username);
+                        const fCount = Number(topOngoing.failed_count) || 0;
+                        const threshold = Number(topOngoing.threshold) || 6;
                         const percent = Math.min(100, Math.round((fCount / threshold) * 100));
 
                         bannerHtml = `
@@ -400,13 +407,14 @@
                                 if (actionCell) {
                                     actionCell.innerHTML = `
                                     <button type="button" 
-                                        onclick="openUnlockModal('${u.uid}', '${row.dataset.rawCn || u.uid}', '${u.group}')"
+                                        data-uid="${escapeHtml(u.uid)}" data-cn="${escapeHtml(row.dataset.rawCn || u.uid)}" data-group="${escapeHtml(u.group)}"
+                                        onclick="openUnlockModal(this.dataset.uid, this.dataset.cn, this.dataset.group)"
                                         title="Mở khóa tài khoản và khôi phục quyền truy cập" 
                                         class="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm transition-all inline-flex items-center">
                                         <i class="fa-solid fa-key mr-1"></i> Mở khóa
                                     </button>
-                                    <form method="POST" action="/users/delete/${encodeURIComponent(u.uid)}" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản ${u.uid} khỏi LDAP?')">
-                                        <input type="hidden" name="sid" value="${sid}">
+                                    <form method="POST" action="/users/delete/${encodeURIComponent(u.uid)}" class="inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản ' + ${JSON.stringify(u.uid)} + ' khỏi LDAP?')">
+                                        <input type="hidden" name="sid" value="${escapeHtml(sid)}">
                                         <button type="submit" title="Xóa tài khoản vĩnh viễn" 
                                             class="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all">
                                             <i class="fa-solid fa-trash-can"></i>

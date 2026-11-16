@@ -43,6 +43,17 @@ cn: radius-svc
 userPassword: {SSHA}Y2MLbHZRvtxMY1qMkNZ1RIkqza6QCzeA
 description: Service Account read-only cho FreeRADIUS LDAP module
 
+# --------------------------------------------------------------------
+# Tài khoản dịch vụ cho Web Dashboard (Quản lý User & Group)
+# Mật khẩu: DashboardSvcSecret123!
+dn: cn=dashboard-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: organizationalRole
+objectClass: simpleSecurityObject
+cn: dashboard-svc
+userPassword: {SSHA}4sVrGKtT2sTbRcXQiQInuxk2FkJAMCCg
+description: Service Account Least Privilege cho NAC Web Dashboard
+
 
 # 3. Danh sách người dùng mẫu (Users)
 # --------------------------------------------------------------------

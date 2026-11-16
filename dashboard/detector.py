@@ -59,8 +59,8 @@ class ActiveDefenseDetector:
                     username = row['username']
                     count = row['failed_count']
                     
-                    # Ignore empty or service accounts
-                    if not username or username in ['radius-svc', 'admin01']:
+                    # Ignore empty or dedicated machine service accounts (chỉ bỏ qua radius-svc, admin01 vẫn được bảo vệ)
+                    if not username or username == 'radius-svc':
                         continue
 
                     # Bỏ qua nếu tài khoản không tồn tại trong OpenLDAP
@@ -159,7 +159,7 @@ class ActiveDefenseDetector:
                 rows = cursor.fetchall()
                 for r in rows:
                     u = r['username']
-                    if not u or u in ['radius-svc', 'admin01']:
+                    if not u or u == 'radius-svc':
                         continue
                     
                     # Bỏ qua tài khoản không tồn tại trong OpenLDAP (tránh cảnh báo user không có thật)

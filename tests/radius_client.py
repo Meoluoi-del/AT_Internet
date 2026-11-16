@@ -1,6 +1,7 @@
 import socket
 import struct
 import hashlib
+import hmac
 import os
 
 # RADIUS Packet Codes (RFC 2865)
@@ -19,6 +20,7 @@ ATTR_TUNNEL_PRIVATE_GROUP_ID = 81
 ATTR_REPLY_MESSAGE = 18
 ATTR_SESSION_TIMEOUT = 27
 ATTR_IDLE_TIMEOUT = 28
+ATTR_MESSAGE_AUTHENTICATOR = 80
 
 def encode_password(secret: str, authenticator: bytes, password: str) -> bytes:
     """Encode password according to RFC 2865 section 5.2 (MD5 XOR)."""
@@ -63,10 +65,19 @@ def send_radius_auth(host: str, port: int, secret: str, username: str, password:
     attrs.extend(build_attribute(ATTR_NAS_IP_ADDRESS, socket.inet_aton("127.0.0.1")))
     attrs.extend(build_attribute(ATTR_NAS_PORT, struct.pack('!I', 0)))
     
+    # Message-Authenticator (RFC 2869 / RFC 3579 - Chống tấn công BlastRADIUS CVE-2024-3596)
+    ma_attr_offset = 20 + len(attrs) + 2  # 20 bytes header, 2 bytes TLV type & len
+    attrs.extend(build_attribute(ATTR_MESSAGE_AUTHENTICATOR, b'\x00' * 16))
+    
     # Build Header
     total_len = 20 + len(attrs)
     header = struct.pack('!BBH16s', ACCESS_REQUEST, packet_id, total_len, authenticator)
-    packet = header + bytes(attrs)
+    packet = bytearray(header + bytes(attrs))
+    
+    # Tính HMAC-MD5 cho toàn bộ packet (với 16 bytes Message-Authenticator là 0)
+    secret_bytes = secret.encode('utf-8')
+    ma_hash = hmac.new(secret_bytes, packet, hashlib.md5).digest()
+    packet[ma_attr_offset:ma_attr_offset + 16] = ma_hash
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(timeout)

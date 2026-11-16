@@ -19,8 +19,11 @@ from mailer import send_password_reset_email
 import hmac
 import re
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
 app.config.from_object(Config)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 def is_safe_redirect_url(target):
     """
@@ -219,9 +222,17 @@ detector_instance.start()
 
 # Hardcoded administrative users for Dashboard access control
 ADMIN_USERS = {
-    'admin': {'password': 'AdminPassword123!', 'role': 'admin', 'name': 'Quản Trị Viên Toàn Quyền'},
-    'auditor': {'password': 'AuditorPass123!', 'role': 'auditor', 'name': 'Cán Bộ Kiểm Toán An Toàn'}
+    'admin': {'password': 'AdminPassword123!', 'role': 'admin', 'name': 'Quản Trị Viên Toàn Quyền', 'group': 'quantri', 'vlan': 10},
+    'auditor': {'password': 'AuditorPass123!', 'role': 'auditor', 'name': 'Cán Bộ Kiểm Toán An Toàn', 'group': 'giangvien', 'vlan': 30}
 }
+
+def resolve_user_group(username: str) -> str:
+    """Xác định nhóm người dùng nhất quán giữa ADMIN_USERS và LDAP."""
+    if not username:
+        return "sinhvien"
+    if username in ADMIN_USERS:
+        return ADMIN_USERS[username].get('group', 'quantri')
+    return ldap_client.get_user_group(username) or "sinhvien"
 
 def login_required(f):
     @wraps(f)
@@ -1010,7 +1021,7 @@ def oauth_authorize():
         return redirect(url_for('login', next=request.url))
 
     username = session.get('username')
-    group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+    group = resolve_user_group(username)
     if group == 'quarantine':
         return jsonify({
             "error": "access_denied",
@@ -1079,7 +1090,7 @@ def oauth_token():
             return jsonify({"error": "invalid_grant", "error_description": "PKCE code_verifier validation failed"}), 400
 
     username = auth_record['username']
-    group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+    group = resolve_user_group(username)
     if group == 'quarantine':
         return jsonify({
             "error": "access_denied",
@@ -1157,7 +1168,7 @@ def oauth_userinfo():
             }), 401
         
         username = claims.get('sub')
-        group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+        group = resolve_user_group(username)
         vlan_map = {'quantri': 10, 'sinhvien': 20, 'giangvien': 30, 'quarantine': 99}
         vlan = vlan_map.get(group, 99)
 
@@ -1194,7 +1205,7 @@ def get_or_create_app_session(client_id: str):
         return None, redirect(url_for('sso_portal'))
 
     # 2. Kiểm tra nếu tài khoản đang bị cách ly trong LDAP (VLAN 99)
-    group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+    group = resolve_user_group(username)
     vlan_map = {'quantri': 10, 'sinhvien': 20, 'giangvien': 30, 'quarantine': 99}
     vlan = vlan_map.get(group, 99)
 
@@ -1229,7 +1240,7 @@ def get_or_create_app_session(client_id: str):
     DBManager.record_sso_client_session(session_id=current_sid, client_id=client_id, username=username, access_token_jti=jti)
     session[f'app_{client_id}_active'] = True
 
-    group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+    group = resolve_user_group(username)
     vlan_map = {'quantri': 10, 'sinhvien': 20, 'giangvien': 30, 'quarantine': 99}
     vlan = vlan_map.get(group, 99)
 
@@ -1253,7 +1264,7 @@ def sso_simulate_app(client_id):
         flash(f'ĐỊA CHỈ IP BỊ CHẶN: IP của bạn ({client_ip}) đang bị cách ly. Không thể truy cập ứng dụng.', 'danger')
         return redirect(url_for('sso_portal'))
 
-    group = "quantri" if username == 'admin' else (ldap_client.get_user_group(username) or "sinhvien")
+    group = resolve_user_group(username)
     if group == 'quarantine':
         flash('TÀI KHOẢN ĐANG BỊ CÁCH LY (VLAN 99)! Toàn bộ quyền truy cập ứng dụng đã bị khóa.', 'danger')
         return redirect(url_for('sso_portal'))
