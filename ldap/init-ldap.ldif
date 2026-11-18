@@ -1,66 +1,66 @@
-# extended LDIF
-#
-# LDAPv3
-# base <dc=attt,dc=ptit,dc=edu,dc=vn> with scope subtree
-# filter: (objectClass=*)
-# requesting: * userPassword 
-#
+# ====================================================================
+# KHỞI TẠO DỮ LIỆU CÂY THƯ MỤC LDAP (DIT BOOTSTRAP)
+# Đề tài: Quản lý truy cập mạng và xác thực trung tâm (NAC)
+# Domain: dc=attt,dc=ptit,dc=edu,dc=vn
+# ====================================================================
 
-# attt.ptit.edu.vn
-dn: dc=attt,dc=ptit,dc=edu,dc=vn
-objectClass: top
-objectClass: dcObject
-objectClass: organization
-o: nodomain
-dc: attt
-
-# users, attt.ptit.edu.vn
+# 1. Định nghĩa các Đơn vị Tổ chức (Organizational Units - OU)
+# --------------------------------------------------------------------
 dn: ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalUnit
 ou: users
 description: Chua toan bo tai khoan nguoi dung mang
 
-# groups, attt.ptit.edu.vn
 dn: ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalUnit
 ou: groups
 description: Chua cac nhom phan quyen mang va VLAN
 
-# services, attt.ptit.edu.vn
 dn: ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalUnit
 ou: services
 description: Chua tai khoan dich vu he thong (FreeRADIUS)
 
-# policies, attt.ptit.edu.vn
 dn: ou=policies,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalUnit
 ou: policies
 description: Nhanh mo rong luu tru chinh sach mang
 
-# radius-svc, services, attt.ptit.edu.vn
+
+# 2. Tài khoản dịch vụ hệ thống (Service Account)
+# --------------------------------------------------------------------
+# Tài khoản này dành riêng cho FreeRADIUS dùng để Bind và Search LDAP
+# Mật khẩu: RadiusSecret123!
 dn: cn=radius-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalRole
 objectClass: simpleSecurityObject
 cn: radius-svc
-userPassword:: e1NTSEF9WTJNTGJIWlJ2dHhNWTFxTWtOWjFSSWtxemE2UUN6ZUE=
+userPassword: {SSHA}Y2MLbHZRvtxMY1qMkNZ1RIkqza6QCzeA
 description: Service Account read-only cho FreeRADIUS LDAP module
 
-# dashboard-svc, services, attt.ptit.edu.vn
+# --------------------------------------------------------------------
+# Tài khoản dịch vụ cho Web Dashboard (Quản lý User & Group)
+# Mật khẩu: DashboardSvcSecret123!
 dn: cn=dashboard-svc,ou=services,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: organizationalRole
 objectClass: simpleSecurityObject
 cn: dashboard-svc
-userPassword:: e1NTSEF9NHNWckdLdFQyc1RiUmNYUWlRSW51eGsyRmtKQU1DQ2c=
+userPassword: {SSHA}4sVrGKtT2sTbRcXQiQInuxk2FkJAMCCg
 description: Service Account Least Privilege cho NAC Web Dashboard
 
-# admin01, users, attt.ptit.edu.vn
+
+# 3. Danh sách người dùng mẫu (Users)
+# --------------------------------------------------------------------
+# Mật khẩu mặc định cho toàn bộ user: P@ssword123!
+# Hash SSHA: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
+
+# 3.1. Quản trị viên mạng & Dashboard
 dn: uid=admin01,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: person
@@ -70,10 +70,10 @@ uid: admin01
 cn: Nguyen Quan Tri
 sn: Nguyen
 mail: admin01@attt.ptit.edu.vn
-userPassword:: e1NTSEF9ZjVLYkp4Wk0vUGRtRUtLajVYNHV0bG9xSkI5YXkrbnY=
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Quan tri vien he thong mang (VLAN 10)
 
-# gv_nguyen, users, attt.ptit.edu.vn
+# 3.2. Giảng viên
 dn: uid=gv_nguyen,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: person
@@ -83,10 +83,10 @@ uid: gv_nguyen
 cn: Nguyen Van Giang
 sn: Nguyen
 mail: gv_nguyen@ptit.edu.vn
-userPassword:: e1NTSEF9ZjVLYkp4Wk0vUGRtRUtLajVYNHV0bG9xSkI5YXkrbnY=
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Can bo giang vien (VLAN 30)
 
-# sv_an, users, attt.ptit.edu.vn
+# 3.3. Sinh viên 1
 dn: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: person
@@ -96,10 +96,10 @@ uid: sv_an
 cn: Nguyen Van An
 sn: Nguyen
 mail: sv_an@ptit.edu.vn
-userPassword:: e1NTSEF9ZjVLYkp4Wk0vUGRtRUtLajVYNHV0bG9xSkI5YXkrbnY=
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Sinh vien khoa ATTT (VLAN 20)
 
-# sv_binh, users, attt.ptit.edu.vn
+# 3.4. Sinh viên 2
 dn: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: person
@@ -109,10 +109,10 @@ uid: sv_binh
 cn: Le Thi Binh
 sn: Le
 mail: sv_binh@ptit.edu.vn
-userPassword:: e1NTSEF9ZjVLYkp4Wk0vUGRtRUtLajVYNHV0bG9xSkI5YXkrbnY=
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Sinh vien khoa ATTT (VLAN 20)
 
-# sv_test, users, attt.ptit.edu.vn
+# 3.5. Tài khoản Test brute-force & kiểm thử cô lập
 dn: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: person
@@ -122,36 +122,13 @@ uid: sv_test
 cn: Tai Khoan Test BruteForce
 sn: Test
 mail: sv_test@ptit.edu.vn
-userPassword:: e1NTSEF9ZjVLYkp4Wk0vUGRtRUtLajVYNHV0bG9xSkI5YXkrbnY=
+userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Tai khoan kiem thu tan cong do mat khau (VLAN 20 chuyen sang 99)
 
-# sv_vinh, users, attt.ptit.edu.vn
-dn: uid=sv_vinh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
-objectClass: top
-objectClass: person
-objectClass: organizationalPerson
-objectClass: inetOrgPerson
-uid: sv_vinh
-cn:: Tmd1eeG7hW4gVsSDbiBC
-sn:: Tmd1eeG7hW4=
-mail: sv_vinh@gmail.com
-userPassword:: e1NTSEF9SlhtazREU2ZxaXlvaXRwYzFZbWhzc0IrNzV0WG9aR20=
-description: Sinh vien Nguyen Van B (VLAN 20)
 
-# meoluoi, users, attt.ptit.edu.vn
-dn: uid=meoluoi,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
-objectClass: top
-objectClass: person
-objectClass: organizationalPerson
-objectClass: inetOrgPerson
-uid: meoluoi
-cn: Hong Meo Luoi
-sn: Luoi
-mail: hongmeoluoi2202@gmail.com
-userPassword:: e1NTSEF9SEh5R3pmNjZaOUpvYjd1Ym1NN3gyU28wSGpnQkhpa2w=
-description: Tu dang ky truc tuyen - Nhom sinhvien (VLAN 20)
-
-# quantri, groups, attt.ptit.edu.vn
+# 4. Danh sách Nhóm đối tượng phân quyền mạng (Groups)
+# --------------------------------------------------------------------
+# 4.1. Nhóm Quản trị (VLAN 10)
 dn: cn=quantri,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: groupOfNames
@@ -160,7 +137,7 @@ description: Nhom Quan tri vien mang - Dynamic VLAN 10
 member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=admin01,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
-# giangvien, groups, attt.ptit.edu.vn
+# 4.2. Nhóm Giảng viên (VLAN 30)
 dn: cn=giangvien,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: groupOfNames
@@ -169,7 +146,7 @@ description: Nhom Giang vien - Dynamic VLAN 30
 member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=gv_nguyen,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
-# sinhvien, groups, attt.ptit.edu.vn
+# 4.3. Nhóm Sinh viên (VLAN 20)
 dn: cn=sinhvien,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: groupOfNames
@@ -179,10 +156,8 @@ member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
-member: uid=sv_vinh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
-member: uid=meoluoi,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
-# quarantine, groups, attt.ptit.edu.vn
+# 4.4. Nhóm Cách ly / Khóa tạm thời (VLAN 99)
 dn: cn=quarantine,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 objectClass: top
 objectClass: groupOfNames
