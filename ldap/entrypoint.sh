@@ -25,7 +25,7 @@ olcAccess: {5}to * by * read
 EOF
 
     echo "[*] Importing custom entries from init-ldap.ldif..."
-    ldapadd -x -D "cn=admin,dc=attt,dc=ptit,dc=edu,dc=vn" -w "AdminPassword123!" -f /etc/ldap/init-ldap.ldif || true
+    ldapadd -x -c -D "cn=admin,dc=attt,dc=ptit,dc=edu,dc=vn" -w "AdminPassword123!" -f /etc/ldap/init-ldap.ldif || true
 
     echo "[*] Shutting down temporary slapd..."
     pkill slapd || true

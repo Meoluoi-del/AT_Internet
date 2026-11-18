@@ -125,6 +125,32 @@ mail: sv_test@ptit.edu.vn
 userPassword: {SSHA}f5KbJxZM/PdmEKKj5X4utloqJB9ay+nv
 description: Tai khoan kiem thu tan cong do mat khau (VLAN 20 chuyen sang 99)
 
+# 3.6. Sinh viên Nguyễn Văn B
+dn: uid=sv_vinh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: sv_vinh
+cn:: Tmd1eeG7hW4gVsSDbiBC
+sn:: Tmd1eeG7hW4=
+mail: sv_vinh@gmail.com
+description: User Nguyen Van B - Group sinhvien (VLAN 20)
+userPassword: {SSHA}JXmk4DSfqiyoitpc1YmhssB+75tXoZGm
+
+# 3.7. Tài khoản tự đăng ký: Hong Meo Luoi
+dn: uid=meoluoi,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: meoluoi
+cn: Hong Meo Luoi
+sn: Luoi
+mail: hongmeoluoi2202@gmail.com
+description: Tu dang ky truc tuyen - Nhom sinhvien (VLAN 20)
+userPassword: {SSHA}HHyGzf66Z9Job7ubmM7x2So0HjgBHikl
+
 
 # 4. Danh sách Nhóm đối tượng phân quyền mạng (Groups)
 # --------------------------------------------------------------------
@@ -156,6 +182,8 @@ member: cn=nobody,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_an,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_binh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 member: uid=sv_test,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+member: uid=sv_vinh,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
+member: uid=meoluoi,ou=users,dc=attt,dc=ptit,dc=edu,dc=vn
 
 # 4.4. Nhóm Cách ly / Khóa tạm thời (VLAN 99)
 dn: cn=quarantine,ou=groups,dc=attt,dc=ptit,dc=edu,dc=vn
