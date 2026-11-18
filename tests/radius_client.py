@@ -4,23 +4,39 @@ import hashlib
 import hmac
 import os
 
-# RADIUS Packet Codes (RFC 2865)
+# RADIUS Packet Codes (RFC 2865 / RFC 2866)
 ACCESS_REQUEST = 1
 ACCESS_ACCEPT = 2
 ACCESS_REJECT = 3
+ACCOUNTING_REQUEST = 4
+ACCOUNTING_RESPONSE = 5
 
 # Common Attribute Types
 ATTR_USER_NAME = 1
 ATTR_USER_PASSWORD = 2
 ATTR_NAS_IP_ADDRESS = 4
 ATTR_NAS_PORT = 5
-ATTR_TUNNEL_TYPE = 64
-ATTR_TUNNEL_MEDIUM_TYPE = 65
-ATTR_TUNNEL_PRIVATE_GROUP_ID = 81
+ATTR_FRAMED_IP_ADDRESS = 8
 ATTR_REPLY_MESSAGE = 18
 ATTR_SESSION_TIMEOUT = 27
 ATTR_IDLE_TIMEOUT = 28
+ATTR_CALLED_STATION_ID = 30
+ATTR_CALLING_STATION_ID = 31
+ATTR_ACCT_STATUS_TYPE = 40
+ATTR_ACCT_INPUT_OCTETS = 42
+ATTR_ACCT_OUTPUT_OCTETS = 43
+ATTR_ACCT_SESSION_ID = 44
+ATTR_ACCT_SESSION_TIME = 46
+ATTR_ACCT_TERMINATE_CAUSE = 49
+ATTR_TUNNEL_TYPE = 64
+ATTR_TUNNEL_MEDIUM_TYPE = 65
+ATTR_TUNNEL_PRIVATE_GROUP_ID = 81
 ATTR_MESSAGE_AUTHENTICATOR = 80
+
+# Acct-Status-Type Values
+ACCT_STATUS_START = 1
+ACCT_STATUS_STOP = 2
+ACCT_STATUS_INTERIM_UPDATE = 3
 
 def encode_password(secret: str, authenticator: bytes, password: str) -> bytes:
     """Encode password according to RFC 2865 section 5.2 (MD5 XOR)."""
@@ -148,4 +164,79 @@ def send_radius_auth(host: str, port: int, secret: str, username: str, password:
         'code_name': code_names.get(resp_code, f'UNKNOWN({resp_code})'),
         'vlan': vlan_id,
         'attributes': parsed_attrs
+    }
+
+def send_radius_acct(host: str, port: int, secret: str, username: str, session_id: str,
+                     status_type: int, framed_ip: str = "192.168.20.101",
+                     session_time: int = 0, input_octets: int = 0, output_octets: int = 0,
+                     nas_ip: str = "127.0.0.1", calling_station_id: str = "00-11-22-33-44-55",
+                     called_station_id: str = "AA-BB-CC-DD-EE-FF:PTIT-NAC",
+                     terminate_cause: int = 1, timeout: int = 4):
+    """
+    Sends RADIUS Accounting-Request packet according to RFC 2866.
+    status_type: 1 (Start), 2 (Stop), 3 (Interim-Update)
+    Returns: dict with 'success', 'code', 'code_name'
+    """
+    packet_id = os.urandom(1)[0]
+    
+    attrs = bytearray()
+    attrs.extend(build_attribute(ATTR_USER_NAME, username.encode('utf-8')))
+    attrs.extend(build_attribute(ATTR_ACCT_STATUS_TYPE, struct.pack('!I', status_type)))
+    attrs.extend(build_attribute(ATTR_ACCT_SESSION_ID, session_id.encode('utf-8')))
+    attrs.extend(build_attribute(ATTR_NAS_IP_ADDRESS, socket.inet_aton(nas_ip)))
+    attrs.extend(build_attribute(ATTR_NAS_PORT, struct.pack('!I', 0)))
+    
+    if framed_ip:
+        attrs.extend(build_attribute(ATTR_FRAMED_IP_ADDRESS, socket.inet_aton(framed_ip)))
+    if calling_station_id:
+        attrs.extend(build_attribute(ATTR_CALLING_STATION_ID, calling_station_id.encode('utf-8')))
+    if called_station_id:
+        attrs.extend(build_attribute(ATTR_CALLED_STATION_ID, called_station_id.encode('utf-8')))
+        
+    if status_type in (ACCT_STATUS_STOP, ACCT_STATUS_INTERIM_UPDATE):
+        attrs.extend(build_attribute(ATTR_ACCT_SESSION_TIME, struct.pack('!I', session_time)))
+        attrs.extend(build_attribute(ATTR_ACCT_INPUT_OCTETS, struct.pack('!I', input_octets)))
+        attrs.extend(build_attribute(ATTR_ACCT_OUTPUT_OCTETS, struct.pack('!I', output_octets)))
+        
+    if status_type == ACCT_STATUS_STOP:
+        attrs.extend(build_attribute(ATTR_ACCT_TERMINATE_CAUSE, struct.pack('!I', terminate_cause)))
+        
+    # RFC 2866 Section 3: Request Authenticator = MD5(Code + Id + Length + 16 zero octets + Attrs + Secret)
+    total_len = 20 + len(attrs)
+    zero_auth = b'\x00' * 16
+    hdr_for_hash = struct.pack('!BBH16s', ACCOUNTING_REQUEST, packet_id, total_len, zero_auth)
+    secret_bytes = secret.encode('utf-8')
+    req_auth = hashlib.md5(hdr_for_hash + attrs + secret_bytes).digest()
+    
+    packet = struct.pack('!BBH16s', ACCOUNTING_REQUEST, packet_id, total_len, req_auth) + bytes(attrs)
+    
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    
+    try:
+        sock.sendto(packet, (host, port))
+        resp, _ = sock.recvfrom(4096)
+    except socket.timeout:
+        return {'success': False, 'code': 0, 'code_name': 'TIMEOUT'}
+    finally:
+        sock.close()
+        
+    if len(resp) < 20:
+        return {'success': False, 'code': 0, 'code_name': 'INVALID_RESPONSE'}
+        
+    resp_code, resp_id, resp_len, resp_auth = struct.unpack('!BBH16s', resp[:20])
+    
+    if resp_id != packet_id:
+        return {'success': False, 'code': resp_code, 'code_name': 'PACKET_ID_MISMATCH'}
+        
+    # Verify Response Authenticator: MD5(Code + Id + Length + Request_Auth + Attrs + Secret)
+    expected_resp_auth = hashlib.md5(resp[:4] + req_auth + resp[20:resp_len] + secret_bytes).digest()
+    if resp_auth != expected_resp_auth:
+        return {'success': False, 'code': resp_code, 'code_name': 'AUTHENTICATOR_MISMATCH'}
+        
+    is_success = (resp_code == ACCOUNTING_RESPONSE)
+    return {
+        'success': is_success,
+        'code': resp_code,
+        'code_name': 'Accounting-Response' if is_success else f'UNKNOWN({resp_code})'
     }
