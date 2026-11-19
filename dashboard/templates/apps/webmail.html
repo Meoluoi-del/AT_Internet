@@ -1,245 +1,214 @@
 {% extends "apps/base_app.html" %}
 
 {% block title %}Hộp thư đến - PTIT Webmail (Google-like Experience){% endblock %}
-{% block app_name %}HỆ THỐNG THƯ ĐIỆN TỬ - PTIT GOOGLE MAIL & SECURITY HUB{% endblock %}
-{% block app_icon %}fa-solid fa-envelope text-red-500{% endblock %}
+{% block app_name %}Hệ thống Thư điện tử - PTIT Google Mail &amp; Security Hub{% endblock %}
+{% block app_icon %}i-mail{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
-
-    <!-- GOOGLE-LIKE TOP SEARCH & BRAND BAR -->
-    <div class="bg-[#121217] border border-zinc-800 rounded-2xl p-3 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-        <!-- Brand / Identity -->
-        <div class="flex items-center space-x-3 w-full md:w-auto">
-            <div class="w-10 h-10 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 text-lg shadow-inner">
-                <i class="fa-solid fa-envelope-open-text"></i>
-            </div>
-            <div>
-                <div class="flex items-center space-x-2">
-                    <span class="font-black text-white text-sm tracking-wide font-mono uppercase">PTIT Google Mail</span>
-                    <span class="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        VERIFIED IDP
-                    </span>
+<div class="stack">
+    <!-- THANH TÌM KIẾM & DANH TÍNH -->
+    <section class="card">
+        <div class="card-body">
+            <div class="row-between wrap" style="gap:12px;">
+                <div class="row">
+                    <span class="app-mark"><svg class="icon" aria-hidden="true"><use href="#i-mail-open"/></svg></span>
+                    <div>
+                        <div class="row" style="gap:6px;">
+                            <span class="app-name">PTIT Google Mail</span>
+                            <span class="badge badge-ok">Verified IdP</span>
+                        </div>
+                        <p class="app-sub">{{ user.email }}</p>
+                    </div>
                 </div>
-                <p class="text-[11px] text-zinc-400 font-mono">{{ user.email }}</p>
+
+                <div class="input-wrap grow" style="max-width:560px;min-width:240px;">
+                    <label class="sr-only" for="mail-search-input">Tìm kiếm trong thư</label>
+                    <svg class="input-icon icon" aria-hidden="true"><use href="#i-search"/></svg>
+                    <input type="text" id="mail-search-input" onkeyup="filterEmails()"
+                        placeholder="Tìm kiếm trong thư (tiêu đề, người gửi, từ khóa an ninh)..."
+                        class="input has-icon has-action">
+                    <button type="button" onclick="clearSearch()" id="clear-search-btn" class="hidden pw-toggle" aria-label="Xóa tìm kiếm" style="right:3px;">
+                        <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
+                    </button>
+                </div>
+
+                <div class="row" style="gap:6px;">
+                    <span class="badge">Mạng: <strong>VLAN {{ user.vlan }}</strong></span>
+                    <button type="button" onclick="refreshMailbox()" class="btn btn-sm btn-icon" title="Làm mới hộp thư" aria-label="Làm mới hộp thư">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
+                    </button>
+                </div>
             </div>
         </div>
+    </section>
 
-        <!-- Gmail Search Bar -->
-        <div class="relative w-full max-w-2xl">
-            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-zinc-400 pointer-events-none">
-                <i class="fa-solid fa-magnifying-glass text-sm"></i>
-            </span>
-            <input type="text" id="mail-search-input" onkeyup="filterEmails()"
-                placeholder="Tìm kiếm trong thư (tiêu đề, người gửi, từ khóa an ninh)..." 
-                class="w-full pl-11 pr-10 py-2.5 rounded-full bg-[#1b1b22] border border-zinc-700/80 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-inner font-mono">
-            <button onclick="clearSearch()" id="clear-search-btn" class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-400 hover:text-white">
-                <i class="fa-solid fa-xmark text-sm"></i>
-            </button>
-        </div>
-
-        <!-- Quick Metrics -->
-        <div class="hidden lg:flex items-center space-x-2 text-xs font-mono text-zinc-400">
-            <span class="px-2.5 py-1 rounded-lg bg-black/60 border border-zinc-800">
-                <span class="text-zinc-500">Mạng:</span> <strong class="text-amber-400">VLAN {{ user.vlan }}</strong>
-            </span>
-            <button onclick="refreshMailbox()" class="p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all" title="Làm mới hộp thư">
-                <i class="fa-solid fa-arrows-rotate text-xs"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- MAIN GMAIL WORKSPACE GRID -->
-    <div class="bg-[#121217] rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[620px]">
-
-        <!-- LEFT SIDEBAR: FOLDERS & COMPOSE (3 cols) -->
-        <div class="md:col-span-3 p-4 border-r border-zinc-800 bg-[#0e0e12] flex flex-col justify-between space-y-4">
-            <div class="space-y-4">
-                <!-- Big Gmail-Style Compose Pill Button -->
-                <button onclick="openComposeModal()" 
-                    class="w-full py-3.5 px-6 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-2xl font-mono uppercase tracking-wider shadow-lg hover:shadow-red-900/30 flex items-center justify-center space-x-2.5 transition-all transform hover:-translate-y-0.5">
-                    <i class="fa-solid fa-pen text-sm"></i>
-                    <span>+ Soạn Thư Mới</span>
+    <!-- KHÔNG GIAN THƯ -->
+    <div class="mail-shell">
+        <!-- CỘT THƯ MỤC -->
+        <aside class="mail-side">
+            <div>
+                <button type="button" onclick="openComposeModal()" class="btn btn-primary btn-block mail-compose-btn">
+                    <svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg>
+                    <span>Soạn Thư Mới</span>
                 </button>
 
-                <!-- Navigation Folder Items -->
-                <nav class="space-y-1 font-mono text-xs">
-                    <button onclick="switchFolder('inbox')" id="nav-inbox" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-red-600/15 text-red-300 font-bold border border-red-500/30 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-inbox text-red-400 text-sm"></i>
+                <nav class="mail-nav" aria-label="Thư mục hộp thư" style="margin-top:10px;">
+                    <button type="button" onclick="switchFolder('inbox')" id="nav-inbox" class="folder-btn is-active">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-inbox"/></svg>
                             <span>Hộp thư đến</span>
                         </span>
-                        <span id="badge-inbox-count" class="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black">
-                            {{ (reset_emails|length) + 3 }}
-                        </span>
+                        <span id="badge-inbox-count" class="folder-count">{{ (reset_emails|length) + 3 }}</span>
                     </button>
 
-                    <button onclick="switchFolder('starred')" id="nav-starred" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-star text-amber-400 text-sm"></i>
+                    <button type="button" onclick="switchFolder('starred')" id="nav-starred" class="folder-btn">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                             <span>Có gắn dấu sao</span>
                         </span>
-                        <span id="badge-starred-count" class="text-[10px] text-zinc-500 font-bold">1</span>
+                        <span id="badge-starred-count" class="folder-count">1</span>
                     </button>
 
-                    <button onclick="switchFolder('sent')" id="nav-sent" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-paper-plane text-blue-400 text-sm"></i>
+                    <button type="button" onclick="switchFolder('sent')" id="nav-sent" class="folder-btn">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-send"/></svg>
                             <span>Đã gửi</span>
                         </span>
-                        <span id="badge-sent-count" class="text-[10px] text-zinc-500 font-bold">2</span>
+                        <span id="badge-sent-count" class="folder-count">2</span>
                     </button>
 
-                    <button onclick="switchFolder('drafts')" id="nav-drafts" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-file-lines text-zinc-500 text-sm"></i>
+                    <button type="button" onclick="switchFolder('drafts')" id="nav-drafts" class="folder-btn">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-file"/></svg>
                             <span>Thư nháp</span>
                         </span>
-                        <span class="text-[10px] text-zinc-500 font-bold">0</span>
+                        <span class="folder-count">0</span>
                     </button>
 
-                    <button onclick="switchFolder('spam')" id="nav-spam" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-sm"></i>
+                    <button type="button" onclick="switchFolder('spam')" id="nav-spam" class="folder-btn">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-alert"/></svg>
                             <span>Thư rác (Spam)</span>
                         </span>
-                        <span class="text-[10px] text-zinc-500 font-bold">0</span>
+                        <span class="folder-count">0</span>
                     </button>
 
-                    <button onclick="switchFolder('trash')" id="nav-trash" 
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                        <span class="flex items-center space-x-3">
-                            <i class="fa-solid fa-trash-can text-zinc-500 text-sm"></i>
+                    <button type="button" onclick="switchFolder('trash')" id="nav-trash" class="folder-btn">
+                        <span class="folder-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>
                             <span>Thùng rác</span>
                         </span>
-                        <span id="badge-trash-count" class="text-[10px] text-zinc-500 font-bold">0</span>
+                        <span id="badge-trash-count" class="folder-count">0</span>
                     </button>
                 </nav>
 
-                <!-- SECURITY HUB SHORTCUTS -->
-                <div class="pt-4 border-t border-zinc-800/80 space-y-2">
-                    <span class="text-[10px] font-black uppercase text-zinc-500 font-mono tracking-wider block">BẢO MẬT HỆ THỐNG</span>
-                    <a href="{{ url_for('forgot_password') }}" target="_blank"
-                        class="w-full flex items-center space-x-2 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-mono font-bold transition-all">
-                        <i class="fa-solid fa-key text-xs"></i>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+                    <span class="label">Bảo mật hệ thống</span>
+                    <a href="{{ url_for('forgot_password') }}" target="_blank" class="btn btn-sm btn-block" style="margin-top:4px;">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-key"/></svg>
                         <span>Thử Khôi Phục Mật Khẩu</span>
                     </a>
                 </div>
             </div>
 
-            <!-- GOOGLE STORAGE METER -->
-            <div class="pt-4 border-t border-zinc-800/80 text-[11px] font-mono text-zinc-500 space-y-1.5">
-                <div class="flex justify-between items-center">
-                    <span class="flex items-center space-x-1.5">
-                        <i class="fa-brands fa-google text-xs text-red-400"></i>
+            <div class="mail-storage">
+                <div class="row-between">
+                    <span class="row" style="gap:5px;">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-database"/></svg>
                         <span>Dung lượng Google:</span>
                     </span>
-                    <span class="text-zinc-300 font-bold">1.2 GB / 15 GB</span>
+                    <span class="mono" style="color:var(--fg);font-weight:600;">1.2 GB / 15 GB</span>
                 </div>
-                <div class="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden border border-zinc-800">
-                    <div class="bg-gradient-to-r from-blue-500 via-amber-400 to-red-500 h-1.5 rounded-full" style="width: 8%"></div>
-                </div>
+                <div class="storage-bar"><span style="width:8%;"></span></div>
             </div>
-        </div>
+        </aside>
 
-        <!-- RIGHT AREA: EMAIL LIST VIEW & FULL READING PANE (9 cols) -->
-        <div class="md:col-span-9 flex flex-col justify-between bg-[#121217]">
-
-            <!-- ========================================================== -->
-            <!-- VIEW A: EMAIL LIST VIEW -->
-            <!-- ========================================================== -->
-            <div id="email-list-view" class="flex flex-col flex-1">
-                <!-- Action Toolbar -->
-                <div class="p-3 border-b border-zinc-800 flex items-center justify-between bg-[#14141a]">
-                    <div class="flex items-center space-x-3 text-xs text-zinc-400">
-                        <input type="checkbox" id="select-all-box" onchange="toggleSelectAll()" class="rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0 cursor-pointer">
-                        <button onclick="refreshMailbox()" class="p-1.5 hover:text-white hover:bg-zinc-800 rounded-lg transition-all" title="Làm mới"><i class="fa-solid fa-arrows-rotate"></i></button>
-                        <button onclick="markSelectedRead()" class="p-1.5 hover:text-white hover:bg-zinc-800 rounded-lg transition-all" title="Đánh dấu đã đọc"><i class="fa-solid fa-envelope-open"></i></button>
-                        <button onclick="deleteSelected()" class="p-1.5 hover:text-white hover:bg-zinc-800 rounded-lg transition-all" title="Xóa thư chọn"><i class="fa-solid fa-trash-can"></i></button>
+        <!-- KHU VỰC ĐỌC THƯ -->
+        <div class="mail-main">
+            <!-- DANH SÁCH THƯ -->
+            <div id="email-list-view" class="mail-list-view flex">
+                <div class="mail-toolbar">
+                    <div class="mail-toolbar-group">
+                        <input type="checkbox" id="select-all-box" onchange="toggleSelectAll()" aria-label="Chọn tất cả thư">
+                        <button type="button" onclick="refreshMailbox()" class="mail-icon-btn" title="Làm mới" aria-label="Làm mới">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
+                        </button>
+                        <button type="button" onclick="markSelectedRead()" class="mail-icon-btn" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-mail-open"/></svg>
+                        </button>
+                        <button type="button" onclick="deleteSelected()" class="mail-icon-btn" title="Xóa thư chọn" aria-label="Xóa thư đã chọn">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>
+                        </button>
                     </div>
 
-                    <!-- Category Tabs (Gmail Style) -->
-                    <div class="flex items-center space-x-2 text-xs font-mono">
-                        <button onclick="switchTab('primary')" id="tab-primary" 
-                            class="px-3 py-1.5 rounded-lg bg-zinc-800 text-white font-bold border-b-2 border-red-500 flex items-center space-x-1.5">
-                            <i class="fa-solid fa-inbox text-red-400"></i>
+                    <div class="mail-tabs" role="tablist" aria-label="Phân loại thư">
+                        <button type="button" onclick="switchTab('primary')" id="tab-primary" class="tab is-active" role="tab" aria-selected="true">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-inbox"/></svg>
                             <span>Hộp thư chính</span>
                         </button>
-                        <button onclick="switchTab('updates')" id="tab-updates" 
-                            class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white font-medium flex items-center space-x-1.5">
-                            <i class="fa-solid fa-circle-exclamation text-blue-400"></i>
-                            <span>Thông báo & Đào tạo</span>
+                        <button type="button" onclick="switchTab('updates')" id="tab-updates" class="tab" role="tab" aria-selected="false">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-info"/></svg>
+                            <span>Thông báo &amp; Đào tạo</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- EMAIL ROWS CONTAINER -->
-                <div id="emails-container" class="divide-y divide-zinc-800/80 font-mono text-xs flex-1 overflow-y-auto max-h-[540px]">
-
-                    <!-- 1. DYNAMIC VERIFICATION EMAILS (PASSWORD RESET / SECURITY TOKENS) -->
+                <div id="emails-container" class="mail-list">
                     {% if reset_emails %}
                     {% for mail in reset_emails %}
-                    <div class="email-row p-4 hover:bg-amber-950/20 transition-all flex items-start justify-between cursor-pointer border-l-4 border-amber-500 bg-amber-950/10"
+                    <div class="email-row is-warn"
                          data-category="primary"
                          data-id="reset_{{ loop.index }}"
                          onclick="openEmailDetail('reset_{{ loop.index }}')">
-                        <div class="flex items-start space-x-3 w-full">
-                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox mt-1 rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0">
-                            <button onclick="toggleStar(event, 'reset_{{ loop.index }}')" class="mt-0.5 text-amber-400 hover:scale-110 transition-all">
-                                <i class="fa-solid fa-star text-xs"></i>
+                        <div class="email-row-main">
+                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox" aria-label="Chọn thư khôi phục mật khẩu" style="margin-top:3px;">
+                            <button type="button" class="mail-star is-starred" onclick="toggleStar(event, 'reset_{{ loop.index }}')" aria-label="Bỏ gắn dấu sao" aria-pressed="true">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                             </button>
-                            <div class="flex-1 min-w-0 pr-4">
-                                <div class="flex items-center space-x-2">
-                                    <span class="font-bold text-amber-300">PTIT Central Security Service</span>
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">XÁC THỰC EMAIL</span>
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] bg-red-500/20 text-red-300 border border-red-500/40">15 PHÚT</span>
+                            <div class="email-row-body">
+                                <div class="email-sender">
+                                    <span>PTIT Central Security Service</span>
+                                    <span class="badge badge-warn">Xác thực email</span>
+                                    <span class="badge badge-danger">15 phút</span>
                                 </div>
-                                <h4 class="font-bold text-white text-xs mt-1 truncate">{{ mail.subject }}</h4>
-                                <p class="text-[11px] text-zinc-400 font-sans mt-0.5 truncate">
-                                    Mã Token xác thực danh tính đặt lại mật khẩu cho tài khoản <strong>{{ mail.username }}</strong>. Bấm vào thư để mở liên kết xác thực an toàn.
-                                </p>
+                                <h4 class="email-subject">{{ mail.subject }}</h4>
+                                <p class="email-preview">Mã Token xác thực danh tính đặt lại mật khẩu cho tài khoản <strong>{{ mail.username }}</strong>. Bấm vào thư để mở liên kết xác thực an toàn.</p>
                             </div>
                         </div>
-                        <div class="text-right whitespace-nowrap">
-                            <span class="text-[10px] text-amber-400 font-bold block">{{ mail.sent_at }}</span>
-                            <span class="text-[9px] text-zinc-500">Mới nhận</span>
+                        <div class="email-side">
+                            <strong>{{ mail.sent_at }}</strong>
+                            <span>Mới nhận</span>
                         </div>
                     </div>
                     {% endfor %}
                     {% endif %}
 
-                    <!-- 2. NAC QUARANTINE / ACCESS CONTROL ALERT -->
-                    <div class="email-row p-4 hover:bg-zinc-900/60 transition-all flex items-start justify-between cursor-pointer {% if user.group == 'quarantine' or user.vlan == '99' %}bg-red-950/20 border-l-4 border-red-500{% else %}bg-zinc-900/20 border-l-4 border-emerald-500{% endif %}"
+                    <div class="email-row {% if user.group == 'quarantine' or user.vlan == '99' %}is-alert{% else %}is-ok{% endif %}"
                          data-category="primary"
                          data-id="mail_nac_alert"
                          onclick="openEmailDetail('mail_nac_alert')">
-                        <div class="flex items-start space-x-3 w-full">
-                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox mt-1 rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0">
-                            <button onclick="toggleStar(event, 'mail_nac_alert')" class="mt-0.5 text-amber-400 hover:scale-110 transition-all">
-                                <i class="fa-solid fa-star text-xs"></i>
+                        <div class="email-row-main">
+                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox" aria-label="Chọn thư cảnh báo NAC" style="margin-top:3px;">
+                            <button type="button" class="mail-star" onclick="toggleStar(event, 'mail_nac_alert')" aria-label="Gắn dấu sao" aria-pressed="false">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                             </button>
-                            <div class="flex-1 min-w-0 pr-4">
-                                <div class="flex items-center space-x-2">
-                                    <span class="font-bold text-white">Hệ thống Giám sát NAC PTIT</span>
+                            <div class="email-row-body">
+                                <div class="email-sender">
+                                    <span>Hệ thống Giám sát NAC PTIT</span>
                                     {% if user.group == 'quarantine' or user.vlan == '99' %}
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] font-black bg-red-600 text-white animate-pulse">CÁCH LY VLAN 99</span>
+                                    <span class="badge badge-danger">Cách ly VLAN 99</span>
                                     {% else %}
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">VLAN {{ user.vlan }}</span>
+                                    <span class="badge">VLAN {{ user.vlan }}</span>
                                     {% endif %}
                                 </div>
-                                <h4 class="font-bold {% if user.group == 'quarantine' or user.vlan == '99' %}text-red-400{% else %}text-emerald-300{% endif %} text-xs mt-1 truncate">
+                                <h4 class="email-subject">
                                     {% if user.group == 'quarantine' or user.vlan == '99' %}
                                     [CẢNH BÁO KHẨN CẤP] Tài khoản và IP đã bị phong tỏa đưa vào diện cách ly VLAN 99
                                     {% else %}
-                                    [Thông Báo An Ninh] Xác thực RADIUS thành công & Cấp phát phân vùng mạng VLAN {{ user.vlan }}
+                                    [Thông Báo An Ninh] Xác thực RADIUS thành công &amp; Cấp phát phân vùng mạng VLAN {{ user.vlan }}
                                     {% endif %}
                                 </h4>
-                                <p class="text-[11px] text-zinc-400 font-sans mt-0.5 truncate">
+                                <p class="email-preview">
                                     {% if user.group == 'quarantine' or user.vlan == '99' %}
                                     Hệ thống Active Defense phát hiện dấu hiệu bất thường. Quyền truy cập các cổng nội bộ đã bị khóa.
                                     {% else %}
@@ -248,228 +217,179 @@
                                 </p>
                             </div>
                         </div>
-                        <div class="text-right whitespace-nowrap">
-                            <span class="text-[10px] text-zinc-400 font-bold block">10:45 SA</span>
-                            <span class="text-[9px] text-zinc-500">Hôm nay</span>
+                        <div class="email-side">
+                            <strong>10:45 SA</strong>
+                            <span>Hôm nay</span>
                         </div>
                     </div>
 
-                    <!-- 3. SSO & ANTI-REPLAY OIDC NOTICE -->
-                    <div class="email-row p-4 hover:bg-zinc-900/60 transition-all flex items-start justify-between cursor-pointer"
+                    <div class="email-row"
                          data-category="primary"
                          data-id="mail_sso_slo"
                          onclick="openEmailDetail('mail_sso_slo')">
-                        <div class="flex items-start space-x-3 w-full">
-                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox mt-1 rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0">
-                            <button onclick="toggleStar(event, 'mail_sso_slo')" class="mt-0.5 text-zinc-600 hover:text-amber-400 transition-all">
-                                <i class="fa-regular fa-star text-xs"></i>
+                        <div class="email-row-main">
+                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox" aria-label="Chọn thư SSO" style="margin-top:3px;">
+                            <button type="button" class="mail-star" onclick="toggleStar(event, 'mail_sso_slo')" aria-label="Gắn dấu sao" aria-pressed="false">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                             </button>
-                            <div class="flex-1 min-w-0 pr-4">
-                                <div class="flex items-center space-x-2">
-                                    <span class="font-bold text-white">Trung tâm Quản trị Danh tính (IdP)</span>
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/30">OIDC RS256</span>
+                            <div class="email-row-body">
+                                <div class="email-sender">
+                                    <span>Trung tâm Quản trị Danh tính (IdP)</span>
+                                    <span class="badge">OIDC RS256</span>
                                 </div>
-                                <h4 class="font-bold text-white text-xs mt-1 truncate">[Bảo Vệ Tài Khoản] Cơ chế Single Logout (SLO) & Chống Session Replay đã kích hoạt</h4>
-                                <p class="text-[11px] text-zinc-400 font-sans mt-0.5 truncate">
-                                    Hệ thống áp dụng cơ chế thu hồi token tức thời (Instant SLO). Bất cứ khi nào đăng xuất, mọi phiên trên các website vệ tinh đều bị hủy bỏ.
-                                </p>
+                                <h4 class="email-subject">[Bảo Vệ Tài Khoản] Cơ chế Single Logout (SLO) &amp; Chống Session Replay đã kích hoạt</h4>
+                                <p class="email-preview">Hệ thống áp dụng cơ chế thu hồi token tức thời (Instant SLO). Bất cứ khi nào đăng xuất, mọi phiên trên các website vệ tinh đều bị hủy bỏ.</p>
                             </div>
                         </div>
-                        <div class="text-right whitespace-nowrap">
-                            <span class="text-[10px] text-zinc-400 block">09:15 SA</span>
-                            <span class="text-[9px] text-zinc-500">Hôm nay</span>
+                        <div class="email-side">
+                            <strong>09:15 SA</strong>
+                            <span>Hôm nay</span>
                         </div>
                     </div>
 
-                    <!-- 4. ACADEMIC & LMS UPDATES (Tab: updates) -->
-                    <div class="email-row p-4 hover:bg-zinc-900/60 transition-all flex items-start justify-between cursor-pointer"
+                    <div class="email-row"
                          data-category="updates"
                          data-id="mail_lms_exam"
                          onclick="openEmailDetail('mail_lms_exam')">
-                        <div class="flex items-start space-x-3 w-full">
-                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox mt-1 rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0">
-                            <button onclick="toggleStar(event, 'mail_lms_exam')" class="mt-0.5 text-zinc-600 hover:text-amber-400 transition-all">
-                                <i class="fa-regular fa-star text-xs"></i>
+                        <div class="email-row-main">
+                            <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox" aria-label="Chọn thư đào tạo" style="margin-top:3px;">
+                            <button type="button" class="mail-star" onclick="toggleStar(event, 'mail_lms_exam')" aria-label="Gắn dấu sao" aria-pressed="false">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                             </button>
-                            <div class="flex-1 min-w-0 pr-4">
-                                <div class="flex items-center space-x-2">
-                                    <span class="font-bold text-white">Phòng Giáo vụ & Đào tạo PTIT</span>
-                                    <span class="px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30">HỌC TẬP</span>
+                            <div class="email-row-body">
+                                <div class="email-sender">
+                                    <span>Phòng Giáo vụ &amp; Đào tạo PTIT</span>
+                                    <span class="badge">Học tập</span>
                                 </div>
-                                <h4 class="font-medium text-zinc-200 text-xs mt-1 truncate">Thông báo lịch thi chuẩn đầu ra An toàn Thông tin Quốc tế và Đồ án tốt nghiệp</h4>
-                                <p class="text-[11px] text-zinc-400 font-sans mt-0.5 truncate">
-                                    Kính gửi các sinh viên khoa ATTT & CNTT, kỳ sát hạch chứng chỉ và báo cáo tiến độ đồ án NAC sẽ diễn ra theo kế hoạch tuần tới.
-                                </p>
+                                <h4 class="email-subject">Thông báo lịch thi chuẩn đầu ra An toàn Thông tin Quốc tế và Đồ án tốt nghiệp</h4>
+                                <p class="email-preview">Kính gửi các sinh viên khoa ATTT &amp; CNTT, kỳ sát hạch chứng chỉ và báo cáo tiến độ đồ án NAC sẽ diễn ra theo kế hoạch tuần tới.</p>
                             </div>
                         </div>
-                        <div class="text-right whitespace-nowrap">
-                            <span class="text-[10px] text-zinc-500 block">Hôm qua</span>
-                            <span class="text-[9px] text-zinc-600">Đào tạo</span>
+                        <div class="email-side">
+                            <strong>Hôm qua</strong>
+                            <span>Đào tạo</span>
                         </div>
                     </div>
-
                 </div>
 
-                <!-- Footer Status Bar -->
-                <div class="p-3 bg-black/40 border-t border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+                <div class="mail-statusbar">
                     <span id="mail-footer-count">Đang hiển thị thư trong Hộp thư đến</span>
-                    <span>Tài khoản: <strong class="text-zinc-300">{{ user.email }}</strong></span>
+                    <span>Tài khoản: <strong style="color:var(--fg);">{{ user.email }}</strong></span>
                 </div>
             </div>
 
-            <!-- ========================================================== -->
-            <!-- VIEW B: FULL EMAIL READING PANE (GMAIL STYLE) -->
-            <!-- ========================================================== -->
-            <div id="email-detail-view" class="hidden flex-col flex-1 p-6 space-y-5 bg-[#121217]">
-                <!-- Top Toolbar within Reading Pane -->
-                <div class="flex items-center justify-between pb-4 border-b border-zinc-800">
-                    <div class="flex items-center space-x-3">
-                        <button onclick="closeEmailDetail()" 
-                            class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-mono font-bold flex items-center space-x-1.5 transition-all">
-                            <i class="fa-solid fa-arrow-left"></i>
+            <!-- CHI TIẾT THƯ -->
+            <div id="email-detail-view" class="mail-detail hidden">
+                <div class="mail-detail-head">
+                    <div class="row" style="gap:6px;">
+                        <button type="button" onclick="closeEmailDetail()" class="btn btn-sm">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-arrow-left"/></svg>
                             <span>Quay lại</span>
                         </button>
-                        <span class="text-xs text-zinc-500 font-mono">|</span>
-                        <button onclick="deleteCurrentEmail()" class="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-all" title="Xóa thư này">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        <button type="button" onclick="deleteCurrentEmail()" class="mail-icon-btn" title="Xóa thư này" aria-label="Xóa thư này">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>
                         </button>
-                        <button onclick="alert('Đã in thư thành công (Mock Print)')" class="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all" title="In thư">
-                            <i class="fa-solid fa-print text-xs"></i>
+                        <button type="button" onclick="alert('Đã in thư thành công (Mock Print)')" class="mail-icon-btn" title="In thư" aria-label="In thư">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-print"/></svg>
                         </button>
                     </div>
 
-                    <!-- Security Verification Tag -->
-                    <div class="flex items-center space-x-2 text-[10px] font-mono">
-                        <span class="px-2.5 py-1 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 font-bold flex items-center space-x-1">
-                            <i class="fa-solid fa-shield-check"></i>
-                            <span>SPF: PASS &bull; DKIM: PASS &bull; RS256 VERIFIED</span>
-                        </span>
-                    </div>
+                    <span class="badge badge-ok">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-shield-check"/></svg>
+                        SPF: PASS &bull; DKIM: PASS &bull; RS256 VERIFIED
+                    </span>
                 </div>
 
-                <!-- Email Title Header -->
-                <div class="space-y-3">
-                    <h2 id="detail-subject" class="text-lg font-black text-white font-mono leading-snug">
-                        Tiêu đề email
-                    </h2>
+                <div>
+                    <h2 id="detail-subject" class="mail-detail-title">Tiêu đề email</h2>
 
-                    <!-- Sender Info Box -->
-                    <div class="flex items-start justify-between bg-black/40 p-3.5 rounded-xl border border-zinc-800/80">
-                        <div class="flex items-center space-x-3">
-                            <div id="detail-avatar" class="w-10 h-10 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 flex items-center justify-center text-sm font-black font-mono">
-                                PT
-                            </div>
-                            <div class="text-xs">
-                                <div class="flex items-center space-x-2">
-                                    <span id="detail-sender" class="font-bold text-white">Hệ thống An ninh Mạng PTIT</span>
-                                    <span id="detail-sender-email" class="text-zinc-500 font-mono text-[11px]">&lt;security@ptit.edu.vn&gt;</span>
+                    <div class="row-between wrap" style="margin-top:8px;padding:10px 0;border-bottom:1px solid var(--border);">
+                        <div class="row">
+                            <span id="detail-avatar" class="mail-avatar">PT</span>
+                            <div>
+                                <div class="row" style="gap:6px;flex-wrap:wrap;">
+                                    <span id="detail-sender" style="font-weight:600;">Hệ thống An ninh Mạng PTIT</span>
+                                    <span id="detail-sender-email" class="mono muted small">&lt;security@ptit.edu.vn&gt;</span>
                                 </div>
-                                <p class="text-[11px] text-zinc-400 font-mono mt-0.5">
-                                    gửi đến: <span class="text-zinc-200">{{ user.email }}</span>
-                                </p>
+                                <p class="mono muted small" style="margin-top:1px;">gửi đến: <span style="color:var(--fg);">{{ user.email }}</span></p>
                             </div>
                         </div>
-                        <span id="detail-time" class="text-[11px] font-mono text-zinc-500">10:45 SA</span>
+                        <span id="detail-time" class="mono muted small">10:45 SA</span>
                     </div>
                 </div>
 
-                <!-- Email Body Box -->
-                <div id="detail-body" class="bg-[#16161d] p-6 rounded-2xl border border-zinc-800 text-sm leading-relaxed text-zinc-200 font-sans space-y-4 shadow-inner">
-                    <!-- Dynamic Body Content injected via JS -->
-                </div>
+                <div id="detail-body" class="mail-body"></div>
 
-                <!-- Bottom Reply / Forward Bar -->
-                <div class="pt-4 border-t border-zinc-800 flex items-center space-x-3">
-                    <button onclick="replyToEmail()" 
-                        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-mono font-bold flex items-center space-x-2 transition-all">
-                        <i class="fa-solid fa-reply text-xs text-amber-400"></i>
+                <div class="row" style="padding-top:4px;border-top:1px solid var(--border);">
+                    <button type="button" onclick="replyToEmail()" class="btn btn-sm">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-reply"/></svg>
                         <span>Trả lời (Reply)</span>
                     </button>
-                    <button onclick="forwardEmail()" 
-                        class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-mono font-bold flex items-center space-x-2 transition-all">
-                        <i class="fa-solid fa-share text-xs text-blue-400"></i>
+                    <button type="button" onclick="forwardEmail()" class="btn btn-sm">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-forward"/></svg>
                         <span>Chuyển tiếp (Forward)</span>
                     </button>
                 </div>
             </div>
-
         </div>
-
     </div>
-
 </div>
 
-<!-- ==================================================================== -->
-<!-- FLOATING GMAIL-STYLE COMPOSE MODAL -->
-<!-- ==================================================================== -->
-<div id="compose-modal" class="hidden fixed bottom-0 right-4 sm:right-8 w-full max-w-[540px] bg-[#181820] border-2 border-zinc-700 rounded-t-2xl shadow-2xl z-50 overflow-hidden font-sans">
-    <!-- Header -->
-    <div class="bg-[#1f1f2a] px-4 py-3 flex items-center justify-between border-b border-zinc-700">
-        <span class="text-xs font-black uppercase text-white font-mono tracking-wider flex items-center space-x-2">
-            <i class="fa-solid fa-envelope text-red-500"></i>
+<!-- HỘP THOẠI SOẠN THƯ -->
+<div id="compose-modal" class="mail-compose hidden">
+    <div class="mail-compose-head">
+        <span class="row" style="gap:6px;font-size:12.5px;font-weight:650;">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-mail"/></svg>
             <span>Thư Mới (New Message)</span>
         </span>
-        <div class="flex items-center space-x-2 text-zinc-400 text-xs">
-            <button onclick="toggleMinimizeCompose()" class="p-1 hover:text-white"><i class="fa-solid fa-minus"></i></button>
-            <button onclick="closeComposeModal()" class="p-1 hover:text-red-400"><i class="fa-solid fa-xmark text-sm"></i></button>
+        <div class="row" style="gap:2px;">
+            <button type="button" onclick="toggleMinimizeCompose()" class="mail-icon-btn" title="Thu nhỏ" aria-label="Thu nhỏ hộp soạn thư">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-minus"/></svg>
+            </button>
+            <button type="button" onclick="closeComposeModal()" class="mail-icon-btn" title="Đóng" aria-label="Đóng hộp soạn thư">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"/></svg>
+            </button>
         </div>
     </div>
 
-    <!-- Form Content -->
-    <div id="compose-body" class="p-4 space-y-3 font-mono text-xs">
+    <div id="compose-body" class="mail-compose-body">
+        <div class="mail-compose-row">
+            <label class="k" for="compose-to">Đến (To):</label>
+            <input type="email" id="compose-to" placeholder="sv_vinh@ptit.edu.vn, admin@ptit.edu.vn...">
+        </div>
+        <div class="mail-compose-row">
+            <label class="k" for="compose-subject">Tiêu đề:</label>
+            <input type="text" id="compose-subject" placeholder="Tiêu đề thư...">
+        </div>
         <div>
-            <div class="flex items-center border-b border-zinc-700/80 py-1.5">
-                <span class="w-16 text-zinc-400">Đến (To):</span>
-                <input type="email" id="compose-to" placeholder="sv_vinh@ptit.edu.vn, admin@ptit.edu.vn..." 
-                    class="w-full bg-transparent text-white focus:outline-none placeholder-zinc-600 text-xs">
-            </div>
+            <label class="sr-only" for="compose-message">Nội dung thư</label>
+            <textarea id="compose-message" rows="7" placeholder="Nội dung thư của bạn..."></textarea>
         </div>
 
-        <div>
-            <div class="flex items-center border-b border-zinc-700/80 py-1.5">
-                <span class="w-16 text-zinc-400">Tiêu đề:</span>
-                <input type="text" id="compose-subject" placeholder="Tiêu đề thư..." 
-                    class="w-full bg-transparent text-white focus:outline-none placeholder-zinc-600 text-xs font-bold">
-            </div>
-        </div>
-
-        <div>
-            <textarea id="compose-message" rows="7" placeholder="Nội dung thư của bạn..." 
-                class="w-full bg-transparent text-zinc-200 focus:outline-none placeholder-zinc-600 text-xs resize-none leading-relaxed font-sans"></textarea>
-        </div>
-
-        <!-- Action Bar -->
-        <div class="pt-3 border-t border-zinc-800 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <button onclick="submitComposeMail()" 
-                    class="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center space-x-2 transition-all">
+        <div class="row-between" style="padding-top:8px;border-top:1px solid var(--border);">
+            <div class="row" style="gap:4px;">
+                <button type="button" onclick="submitComposeMail()" class="btn btn-primary btn-sm">
                     <span>Gửi</span>
-                    <i class="fa-solid fa-paper-plane text-[10px]"></i>
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-send"/></svg>
                 </button>
-                <button type="button" onclick="alert('Đã đính kèm tệp tin')" class="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-all" title="Đính kèm tệp">
-                    <i class="fa-solid fa-paperclip"></i>
+                <button type="button" onclick="alert('Đã đính kèm tệp tin')" class="mail-icon-btn" title="Đính kèm tệp" aria-label="Đính kèm tệp">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-paperclip"/></svg>
                 </button>
             </div>
-            <button onclick="closeComposeModal()" class="p-2 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 rounded-lg transition-all" title="Hủy thư">
-                <i class="fa-solid fa-trash-can"></i>
+            <button type="button" onclick="closeComposeModal()" class="mail-icon-btn" title="Hủy thư" aria-label="Hủy thư">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>
             </button>
         </div>
     </div>
 </div>
 
-<!-- ==================================================================== -->
-<!-- TOAST NOTIFICATION POPUP -->
-<!-- ==================================================================== -->
-<div id="mail-toast" class="hidden fixed bottom-6 left-6 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs font-mono shadow-2xl flex items-center space-x-2.5 z-50">
-    <i id="mail-toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+<!-- THÔNG BÁO TOAST -->
+<div id="mail-toast" class="mail-toast hidden">
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-check-circle"/></svg>
     <span id="mail-toast-text">Thông báo</span>
 </div>
 
-<!-- ==================================================================== -->
-<!-- INTERACTIVE JAVASCRIPT ENGINE (GMAIL CONTROLLER) -->
-<!-- ==================================================================== -->
 <script>
-    // Data Store for Email Details
     const EMAIL_STORE = {
         'mail_nac_alert': {
             subject: "[Cảnh Báo Bảo Mật] Xác thực RADIUS & Quản lý Phân vùng mạng VLAN",
@@ -477,35 +397,36 @@
             senderEmail: "security-nac@ptit.edu.vn",
             time: "10:45 SA (Hôm nay)",
             avatar: "NAC",
-            avatarBg: "bg-red-600/20 text-red-400 border-red-500/40",
+            avatarBg: "",
             bodyHtml: `
-                <div class="space-y-4 font-sans">
-                    <div class="p-4 rounded-xl {% if user.group == 'quarantine' or user.vlan == '99' %}bg-red-950/40 border border-red-600 text-red-200{% else %}bg-emerald-950/30 border border-emerald-600/40 text-emerald-200{% endif %}">
-                        <h4 class="font-bold text-sm flex items-center space-x-2">
-                            <i class="fa-solid fa-shield-halved"></i>
-                            <span>Trạng thái Xác thực: {% if user.group == 'quarantine' or user.vlan == '99' %}ĐANG BỊ CÁCH LY (VLAN 99){% else %}HOẠT ĐỘNG BÌNH THƯỜNG (VLAN {{ user.vlan }}){% endif %}</span>
-                        </h4>
-                        <p class="text-xs mt-1">
-                            Người dùng: <strong>{{ user.username }}</strong> &bull; Nhóm quyền LDAP: <strong>{{ user.group }}</strong> &bull; Cổng kết nối: <strong>IEEE 802.1X / RADIUS</strong>
-                        </p>
+                <div class="stack-sm">
+                    <div class="alert {% if user.group == 'quarantine' or user.vlan == '99' %}alert-danger{% else %}alert-ok{% endif %}">
+                        <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>
+                        <div class="alert-body">
+                            <p class="alert-title">Trạng thái Xác thực: {% if user.group == 'quarantine' or user.vlan == '99' %}ĐANG BỊ CÁCH LY (VLAN 99){% else %}HOẠT ĐỘNG BÌNH THƯỜNG (VLAN {{ user.vlan }}){% endif %}</p>
+                            <p class="alert-sub">
+                                Người dùng: <strong>{{ user.username }}</strong> &bull; Nhóm quyền LDAP: <strong>{{ user.group }}</strong> &bull; Cổng kết nối: <strong>IEEE 802.1X / RADIUS</strong>
+                            </p>
+                        </div>
                     </div>
 
                     <p>Kính gửi <strong>{{ user.name or user.username }}</strong>,</p>
                     <p>Hệ thống Kiểm soát Truy cập Mạng Trung tâm (PTIT Network Access Control) đã ghi nhận phiên kết nối mạng của bạn.</p>
-                    
-                    <div class="bg-black/40 p-4 rounded-xl border border-zinc-800 text-xs font-mono space-y-1">
+
+                    <div class="code-block">
                         <div>&bull; Mã phân đoạn mạng: <strong>VLAN {{ user.vlan }}</strong></div>
                         <div>&bull; Tiêu chuẩn áp dụng: <strong>RFC 2868 / RFC 3580 (Tunnel Private Group ID)</strong></div>
                         <div>&bull; Giới hạn phiên (Session-Timeout): <strong>Được quản lý động từ Policy Matrix</strong></div>
                     </div>
 
                     {% if user.group == 'quarantine' or user.vlan == '99' %}
-                    <div class="p-3 bg-red-900/30 border border-red-500 rounded-xl text-xs text-red-300">
-                        <strong>CẢNH BÁO:</strong> Tài khoản của bạn đã bị cách ly do vượt ngưỡng thử sai mật khẩu. Toàn bộ các dịch vụ QLĐT, LMS, VPN đã bị phong tỏa. Vui lòng liên hệ Admin để giải phóng tài khoản.
+                    <div class="alert alert-danger">
+                        <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+                        <div class="alert-body"><strong>CẢNH BÁO:</strong> Tài khoản của bạn đã bị cách ly do vượt ngưỡng thử sai mật khẩu. Toàn bộ các dịch vụ QLĐT, LMS, VPN đã bị phong tỏa. Vui lòng liên hệ Admin để giải phóng tài khoản.</div>
                     </div>
                     {% endif %}
 
-                    <p class="text-xs text-zinc-400">Trân trọng,<br>Ban An toàn An ninh Mạng Học viện (PTIT Security Operations Center).</p>
+                    <p class="muted">Trân trọng,<br>Ban An toàn An ninh Mạng Học viện (PTIT Security Operations Center).</p>
                 </div>
             `
         },
@@ -515,20 +436,20 @@
             senderEmail: "iam-idp@ptit.edu.vn",
             time: "09:15 SA (Hôm nay)",
             avatar: "SSO",
-            avatarBg: "bg-blue-600/20 text-blue-400 border-blue-500/40",
+            avatarBg: "",
             bodyHtml: `
-                <div class="space-y-4 font-sans">
+                <div class="stack-sm">
                     <p>Xin chào <strong>{{ user.username }}</strong>,</p>
                     <p>Cổng Quản trị Danh tính Tập trung (Central Identity Provider) vừa cấp phát Token định danh số chuẩn <strong>OpenID Connect (OIDC)</strong> ký bằng thuật toán bất đối xứng <strong>RS256</strong>.</p>
-                    
-                    <div class="bg-black/40 p-4 rounded-xl border border-zinc-800 text-xs font-mono space-y-2">
-                        <div class="text-emerald-400 font-bold"><i class="fa-solid fa-check-circle mr-1"></i> Tính năng Single Logout (SLO) đã sẵn sàng</div>
-                        <p class="text-zinc-300 font-sans">
+
+                    <div class="code-block">
+                        <div class="status status-ok" style="font-weight:600;">Tính năng Single Logout (SLO) đã sẵn sàng</div>
+                        <p style="margin-top:4px;font-family:var(--font);">
                             Khi bạn bấm "Đăng xuất" tại bất kỳ dịch vụ nào (QLĐT, Thư viện số, Webmail, VPN), toàn bộ các phiên đăng nhập trên TẤT CẢ các website liên kết sẽ được tự động thu hồi ngay lập tức để chống kẻ xấu chiếm đoạt phiên (Session Replay Attack).
                         </p>
                     </div>
 
-                    <p class="text-xs text-zinc-400">© 2026 PTIT Central IAM Platform.</p>
+                    <p class="muted">&copy; 2026 PTIT Central IAM Platform.</p>
                 </div>
             `
         },
@@ -538,25 +459,24 @@
             senderEmail: "giaovu@ptit.edu.vn",
             time: "Hôm qua",
             avatar: "GV",
-            avatarBg: "bg-purple-600/20 text-purple-400 border-purple-500/40",
+            avatarBg: "",
             bodyHtml: `
-                <div class="space-y-4 font-sans">
+                <div class="stack-sm">
                     <p>Kính gửi toàn thể sinh viên và giảng viên khoa An toàn Thông tin,</p>
                     <p>Phòng Giáo vụ & Đào tạo xin thông báo kế hoạch kiểm tra sát hạch chuẩn đầu ra thực hành an toàn mạng (Lab NAC, FreeRADIUS, OpenLDAP, 802.1X Dynamic VLAN):</p>
-                    
-                    <ul class="list-disc pl-5 text-xs text-zinc-300 space-y-1 font-mono">
+
+                    <ul style="padding-left:18px;color:var(--muted-fg);font-family:var(--mono);font-size:12px;">
                         <li>Thời gian: Tuần 12 theo kế hoạch năm học.</li>
                         <li>Hình thức: Kiểm thử thực tế trên hệ sinh thái phần mềm tập trung.</li>
                         <li>Yêu cầu: Sử dụng tài khoản email trường @ptit.edu.vn để xác thực.</li>
                     </ul>
 
-                    <p class="text-xs text-zinc-400">Phòng Giáo vụ & Đào tạo Học viện Công nghệ Bưu chính Viễn thông.</p>
+                    <p class="muted">Phòng Giáo vụ & Đào tạo Học viện Công nghệ Bưu chính Viễn thông.</p>
                 </div>
             `
         }
     };
 
-    // Inject Dynamic Reset Password Emails into store
     {% if reset_emails %}
     {% for mail in reset_emails %}
     EMAIL_STORE['reset_{{ loop.index }}'] = {
@@ -565,37 +485,34 @@
         senderEmail: "security-auth@ptit.edu.vn",
         time: "{{ mail.sent_at }}",
         avatar: "KEY",
-        avatarBg: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+        avatarBg: "",
         bodyHtml: `
-            <div class="space-y-4 font-sans">
-                <div class="p-4 rounded-xl bg-amber-950/40 border border-amber-500 text-amber-200">
-                    <h4 class="font-bold text-sm flex items-center space-x-2">
-                        <i class="fa-solid fa-key"></i>
-                        <span>XÁC THỰC KHÔI PHỤC MẬT KHẨU TÀI KHOẢN MẠNG & SSO</span>
-                    </h4>
-                    <p class="text-xs mt-1">
-                        Yêu cầu gửi tới tài khoản: <strong>{{ mail.username }}</strong> &bull; Thời hạn hiệu lực: <strong>15 phút</strong> (One-Time Token).
-                    </p>
+            <div class="stack-sm">
+                <div class="alert alert-warn">
+                    <svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>
+                    <div class="alert-body">
+                        <p class="alert-title">XÁC THỰC KHÔI PHỤC MẬT KHẨU TÀI KHOẢN MẠNG & SSO</p>
+                        <p class="alert-sub">Yêu cầu gửi tới tài khoản: <strong>{{ mail.username }}</strong> &bull; Thời hạn hiệu lực: <strong>15 phút</strong> (One-Time Token).</p>
+                    </div>
                 </div>
 
                 <p>Xin chào <strong>{{ mail.username }}</strong>,</p>
                 <p>Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Để bảo mật danh tính và quyền truy cập mạng, vui lòng bấm vào nút bên dưới để tiến hành đổi mật khẩu mới:</p>
 
-                <div class="my-6 text-center">
-                    <a href="{{ mail.reset_link }}" target="_blank" 
-                        class="inline-flex items-center space-x-2 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-black text-xs rounded-xl font-mono uppercase tracking-wider shadow-xl transition-all transform hover:scale-105">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <div style="text-align:center;margin:10px 0;">
+                    <a href="{{ mail.reset_link }}" target="_blank" class="btn btn-primary">
+                        <svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right"/></svg>
                         <span>Xác Thực & Đổi Mật Khẩu Ngay</span>
                     </a>
                 </div>
 
-                <div class="p-3 bg-black/50 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-400 space-y-1">
-                    <div>* Token an toàn (32-bytes urlsafe): <span class="text-amber-400">{{ mail.token }}</span></div>
-                    <div>* Nếu nút trên không bấm được, truy cập link:</div>
-                    <div class="text-[11px] text-blue-400 break-all select-all">{{ mail.reset_link }}</div>
+                <div class="code-block">
+                    <div>* Token an toàn (32-bytes urlsafe): <span style="color:var(--warn);">{{ mail.token }}</span></div>
+                    <div style="margin-top:4px;">* Nếu nút trên không bấm được, truy cập link:</div>
+                    <div style="font-size:12px;overflow-wrap:anywhere;">{{ mail.reset_link }}</div>
                 </div>
 
-                <p class="text-xs text-zinc-500">Nếu bạn không yêu cầu hành động này, vui lòng bỏ qua thư. Mật khẩu hiện tại của bạn vẫn an toàn tuyệt đối.</p>
+                <p class="muted">Nếu bạn không yêu cầu hành động này, vui lòng bỏ qua thư. Mật khẩu hiện tại của bạn vẫn an toàn tuyệt đối.</p>
             </div>
         `
     };
@@ -604,7 +521,6 @@
 
     let currentOpenEmailId = null;
 
-    // Open Email Detail View
     function openEmailDetail(emailId) {
         currentOpenEmailId = emailId;
         const mail = EMAIL_STORE[emailId];
@@ -620,11 +536,10 @@
         document.getElementById('detail-sender-email').textContent = `<${mail.senderEmail}>`;
         document.getElementById('detail-time').textContent = mail.time;
         document.getElementById('detail-avatar').textContent = mail.avatar;
-        document.getElementById('detail-avatar').className = `w-10 h-10 rounded-full flex items-center justify-center text-sm font-black font-mono border ${mail.avatarBg}`;
+        document.getElementById('detail-avatar').className = `mail-avatar ${mail.avatarBg}`;
         document.getElementById('detail-body').innerHTML = mail.bodyHtml;
     }
 
-    // Close Email Detail View
     function closeEmailDetail() {
         document.getElementById('email-detail-view').classList.remove('flex');
         document.getElementById('email-detail-view').classList.add('hidden');
@@ -632,7 +547,6 @@
         currentOpenEmailId = null;
     }
 
-    // Delete Current Email
     function deleteCurrentEmail() {
         if (!currentOpenEmailId) return;
         const row = document.querySelector(`[data-id="${currentOpenEmailId}"]`);
@@ -641,7 +555,6 @@
         showToast("Đã chuyển thư vào Thùng rác.");
     }
 
-    // Filter by Tabs (Primary vs Updates)
     function switchTab(tabName) {
         const rows = document.querySelectorAll('.email-row');
         rows.forEach(row => {
@@ -652,40 +565,31 @@
             }
         });
 
-        document.getElementById('tab-primary').className = tabName === 'primary' 
-            ? 'px-3 py-1.5 rounded-lg bg-zinc-800 text-white font-bold border-b-2 border-red-500 flex items-center space-x-1.5'
-            : 'px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white font-medium flex items-center space-x-1.5';
-        
-        document.getElementById('tab-updates').className = tabName === 'updates'
-            ? 'px-3 py-1.5 rounded-lg bg-zinc-800 text-white font-bold border-b-2 border-red-500 flex items-center space-x-1.5'
-            : 'px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white font-medium flex items-center space-x-1.5';
+        const primary = document.getElementById('tab-primary');
+        const updates = document.getElementById('tab-updates');
+        primary.classList.toggle('is-active', tabName === 'primary');
+        updates.classList.toggle('is-active', tabName === 'updates');
+        primary.setAttribute('aria-selected', tabName === 'primary' ? 'true' : 'false');
+        updates.setAttribute('aria-selected', tabName === 'updates' ? 'true' : 'false');
     }
 
-    // Filter by Folders (Inbox, Starred, Sent, Trash)
     function switchFolder(folder) {
         closeEmailDetail();
-        // Reset nav styles
         const navs = ['inbox', 'starred', 'sent', 'drafts', 'spam', 'trash'];
         navs.forEach(n => {
             const el = document.getElementById(`nav-${n}`);
-            if (el) {
-                el.className = n === folder 
-                    ? 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-red-600/15 text-red-300 font-bold border border-red-500/30 transition-all'
-                    : 'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all';
-            }
+            if (el) el.classList.toggle('is-active', n === folder);
         });
 
         const rows = document.querySelectorAll('.email-row');
         if (folder === 'starred') {
             rows.forEach(r => {
-                const isStarred = r.querySelector('.fa-star.fa-solid');
+                const isStarred = r.querySelector('.mail-star.is-starred');
                 r.style.display = isStarred ? 'flex' : 'none';
             });
             showToast("Đang hiển thị các thư có gắn dấu sao");
         } else if (folder === 'sent') {
-            rows.forEach(r => {
-                r.style.display = r.dataset.sent === 'true' ? 'flex' : 'none';
-            });
+            rows.forEach(r => r.style.display = r.dataset.sent === 'true' ? 'flex' : 'none');
             showToast("Đang hiển thị Thư đã gửi");
         } else if (folder === 'trash') {
             rows.forEach(r => r.style.display = 'none');
@@ -695,28 +599,18 @@
         }
     }
 
-    // Star Toggle
     function toggleStar(e, emailId) {
         e.stopPropagation();
         const row = document.querySelector(`[data-id="${emailId}"]`);
         if (!row) return;
-        const icon = row.querySelector('.fa-star');
-        if (icon.classList.contains('fa-solid')) {
-            icon.classList.remove('fa-solid');
-            icon.classList.add('fa-regular');
-            icon.classList.remove('text-amber-400');
-            icon.classList.add('text-zinc-600');
-            showToast("Đã bỏ gắn dấu sao");
-        } else {
-            icon.classList.remove('fa-regular');
-            icon.classList.add('fa-solid');
-            icon.classList.remove('text-zinc-600');
-            icon.classList.add('text-amber-400');
-            showToast("Đã gắn dấu sao ⭐");
-        }
+        const star = row.querySelector('.mail-star');
+        if (!star) return;
+        const starred = star.classList.toggle('is-starred');
+        star.setAttribute('aria-pressed', starred ? 'true' : 'false');
+        star.setAttribute('aria-label', starred ? 'Bỏ gắn dấu sao' : 'Gắn dấu sao');
+        showToast(starred ? "Đã gắn dấu sao" : "Đã bỏ gắn dấu sao");
     }
 
-    // Instant Search Filter
     function filterEmails() {
         const query = document.getElementById('mail-search-input').value.toLowerCase().trim();
         const clearBtn = document.getElementById('clear-search-btn');
@@ -746,7 +640,6 @@
         filterEmails();
     }
 
-    // Compose Modal Handlers
     function openComposeModal(to = '', subject = '') {
         const modal = document.getElementById('compose-modal');
         modal.classList.remove('hidden');
@@ -763,8 +656,7 @@
     }
 
     function toggleMinimizeCompose() {
-        const body = document.getElementById('compose-body');
-        body.classList.toggle('hidden');
+        document.getElementById('compose-body').classList.toggle('hidden');
     }
 
     function submitComposeMail() {
@@ -777,7 +669,6 @@
             return;
         }
 
-        // Add to sent rows dynamically
         const container = document.getElementById('emails-container');
         const newId = 'sent_' + Date.now();
         EMAIL_STORE[newId] = {
@@ -786,34 +677,34 @@
             senderEmail: "{{ user.email }}",
             time: "Vừa xong",
             avatar: "ME",
-            avatarBg: "bg-blue-600/20 text-blue-400 border-blue-500/40",
-            bodyHtml: `<div class="space-y-3 font-sans"><p>${msg.replace(/\n/g, '<br>')}</p></div>`
+            avatarBg: "",
+            bodyHtml: `<div class="stack-sm"><p>${msg.replace(/\n/g, '<br>')}</p></div>`
         };
 
         const newRow = document.createElement('div');
-        newRow.className = "email-row p-4 hover:bg-zinc-900/60 transition-all flex items-start justify-between cursor-pointer border-l-4 border-blue-500 bg-blue-950/10";
+        newRow.className = "email-row is-ok";
         newRow.dataset.category = "primary";
         newRow.dataset.sent = "true";
         newRow.dataset.id = newId;
         newRow.onclick = function() { openEmailDetail(newId); };
         newRow.innerHTML = `
-            <div class="flex items-start space-x-3 w-full">
-                <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox mt-1 rounded bg-zinc-800 border-zinc-700 text-red-500 focus:ring-0">
-                <button onclick="toggleStar(event, '${newId}')" class="mt-0.5 text-zinc-600 hover:text-amber-400 transition-all">
-                    <i class="fa-regular fa-star text-xs"></i>
+            <div class="email-row-main">
+                <input type="checkbox" onclick="event.stopPropagation()" class="mail-checkbox" aria-label="Chọn thư đã gửi" style="margin-top:3px;">
+                <button type="button" onclick="toggleStar(event, '${newId}')" class="mail-star" aria-label="Gắn dấu sao" aria-pressed="false">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"/></svg>
                 </button>
-                <div class="flex-1 min-w-0 pr-4">
-                    <div class="flex items-center space-x-2">
-                        <span class="font-bold text-white">Gửi đến: ${to}</span>
-                        <span class="px-1.5 py-0.2 rounded text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/40">ĐÃ GỬI</span>
+                <div class="email-row-body">
+                    <div class="email-sender">
+                        <span>Gửi đến: ${to}</span>
+                        <span class="badge">Đã gửi</span>
                     </div>
-                    <h4 class="font-bold text-white text-xs mt-1 truncate">${subject}</h4>
-                    <p class="text-[11px] text-zinc-400 font-sans mt-0.5 truncate">${msg || '(Không có nội dung)'}</p>
+                    <h4 class="email-subject">${subject}</h4>
+                    <p class="email-preview">${msg || '(Không có nội dung)'}</p>
                 </div>
             </div>
-            <div class="text-right whitespace-nowrap">
-                <span class="text-[10px] text-blue-400 font-bold block">Vừa xong</span>
-                <span class="text-[9px] text-zinc-500">Đã gửi</span>
+            <div class="email-side">
+                <strong>Vừa xong</strong>
+                <span>Đã gửi</span>
             </div>
         `;
 
@@ -834,7 +725,6 @@
         openComposeModal('', "Fwd: " + mail.subject);
     }
 
-    // Refresh Mailbox
     function refreshMailbox() {
         showToast("Đang đồng bộ hộp thư mới nhất...");
         setTimeout(() => {
@@ -842,7 +732,6 @@
         }, 600);
     }
 
-    // Select All Checkbox
     function toggleSelectAll() {
         const master = document.getElementById('select-all-box');
         const boxes = document.querySelectorAll('.mail-checkbox');
@@ -866,7 +755,6 @@
         showToast("Đã đánh dấu đã đọc.");
     }
 
-    // Toast Helper
     function showToast(text) {
         const toast = document.getElementById('mail-toast');
         const label = document.getElementById('mail-toast-text');

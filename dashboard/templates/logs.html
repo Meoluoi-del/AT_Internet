@@ -2,82 +2,69 @@
 {% block title %}Nhật ký Xác thực RADIUS{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-
-    <!-- HEADER -->
-    <div class="flex items-center justify-between pb-2 border-b border-zinc-900">
-        <div>
-            <h2 class="text-2xl font-black text-white tracking-wider">NHẬT KÝ XÁC THỰC MẠNG (RADIUS POST-AUTH)</h2>
-            <p class="text-xs text-zinc-400 mt-1 font-mono">Truy vết thời gian thực mọi yêu cầu đăng nhập qua máy chủ FreeRADIUS (bảng radpostauth)</p>
-        </div>
-
-        <!-- SEARCH FORM -->
-        <form method="GET" action="{{ url_for('logs_view') }}" class="flex items-center space-x-2">
-            <input type="hidden" name="sid" value="{{ sid }}">
-            <div class="relative">
-                <input type="text" name="user" value="{{ search_user }}" placeholder="Lọc theo Username..." 
-                    class="pl-8 pr-3 py-1.5 rounded-xl bg-black border border-zinc-700 text-xs text-white focus:border-white focus:outline-none w-48 font-mono">
-                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-zinc-500">
-                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
-                </span>
-            </div>
-            <button type="submit" class="px-3.5 py-1.5 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-black uppercase tracking-wider transition-all">Lọc</button>
-            {% if search_user %}
-            <a href="{{ url_for('logs_view') }}" class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-semibold">Xóa lọc</a>
-            {% endif %}
-        </form>
+<div class="page-head">
+    <div>
+        <h2 class="page-title">Nhật ký Xác thực Mạng (RADIUS Post-Auth)</h2>
+        <p class="page-sub">Truy vết thời gian thực mọi yêu cầu đăng nhập qua máy chủ FreeRADIUS (bảng radpostauth)</p>
     </div>
 
-    <!-- TABLE (ĐEN TRẮNG CHỦ ĐẠO + ĐIỂM NHẤN ĐỎ / TRẮNG CHO ACCESS-REJECT / ACCEPT) -->
-    <div class="bg-[#121215] rounded-2xl border border-zinc-800 shadow-xl overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-black text-zinc-400 uppercase font-bold border-b border-zinc-800 text-[10px] tracking-wider">
-                    <tr>
-                        <th class="px-6 py-3.5">ID</th>
-                        <th class="px-6 py-3.5">Thời điểm (Timestamp)</th>
-                        <th class="px-6 py-3.5">Tài khoản (Username)</th>
-                        <th class="px-6 py-3.5">Kết quả xác thực</th>
-                        <th class="px-6 py-3.5">Mật khẩu nhập (Masked)</th>
-                        <th class="px-6 py-3.5">Class / Session Ref</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-800/80 text-zinc-300 bg-[#121215]">
-                    {% if logs %}
-                        {% for log in logs %}
-                        <tr class="hover:bg-zinc-900/50 transition-colors">
-                            <td class="px-6 py-3.5 font-mono text-zinc-500 text-[11px]">{{ log.id }}</td>
-                            <td class="px-6 py-3.5 font-mono text-zinc-400 text-[11px]">{{ log.authdate }}</td>
-                            <td class="px-6 py-3.5 font-bold font-mono text-white text-sm">{{ log.username }}</td>
-                            <td class="px-6 py-3.5">
-                                {% if log.reply == 'Access-Accept' %}
-                                    <!-- Access-Accept: Trắng / Xám bạc tinh tế, trang thái chuẩn -->
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-bold font-mono bg-zinc-800 text-white border border-zinc-600">
-                                        <i class="fa-solid fa-circle-check mr-1.5 text-[10px] text-white"></i> Access-Accept
-                                    </span>
-                                {% else %}
-                                    <!-- Access-Reject: MỨC ĐỎ NGUY HIỂM / BỊ CHẶN -->
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-extrabold font-mono bg-red-950 text-red-400 border border-red-700/80">
-                                        <i class="fa-solid fa-circle-xmark mr-1.5 text-[10px]"></i> Access-Reject
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-3.5 font-mono text-zinc-600 text-[11px] tracking-widest">••••••••</td>
-                            <td class="px-6 py-3.5 text-zinc-500 font-mono text-[11px]">{{ log.class or '-' }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-zinc-500">
-                                <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>
-                                Không tìm thấy bản ghi xác thực nào.
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
+    <form method="GET" action="{{ url_for('logs_view') }}" class="page-actions">
+        <input type="hidden" name="sid" value="{{ sid }}">
+        <div class="input-wrap">
+            <label class="sr-only" for="logUserSearch">Lọc nhật ký theo Username</label>
+            <svg class="input-icon icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input type="text" id="logUserSearch" name="user" value="{{ search_user }}" placeholder="Lọc theo Username..." class="input has-icon mono" style="width:200px;">
         </div>
-    </div>
-
+        <button type="submit" class="btn btn-primary btn-sm">Lọc</button>
+        {% if search_user %}
+        <a href="{{ url_for('logs_view') }}" class="btn btn-sm">Xóa lọc</a>
+        {% endif %}
+    </form>
 </div>
+
+<section class="card">
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="text-right">ID</th>
+                    <th>Thời điểm (Timestamp)</th>
+                    <th>Tài khoản (Username)</th>
+                    <th>Kết quả xác thực</th>
+                    <th>Mật khẩu nhập (Masked)</th>
+                    <th>Class / Session Ref</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if logs %}
+                    {% for log in logs %}
+                    <tr>
+                        <td class="mono muted text-right">{{ log.id }}</td>
+                        <td class="mono muted">{{ log.authdate }}</td>
+                        <td class="mono"><strong>{{ log.username }}</strong></td>
+                        <td>
+                            {% if log.reply == 'Access-Accept' %}
+                            <span class="status status-ok">Access-Accept</span>
+                            {% else %}
+                            <span class="status status-danger">Access-Reject</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono muted">••••••••</td>
+                        <td class="mono muted">{{ log.class or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <svg class="icon icon-lg" aria-hidden="true"><use href="#i-inbox"/></svg>
+                                <p>Không tìm thấy bản ghi xác thực nào.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}

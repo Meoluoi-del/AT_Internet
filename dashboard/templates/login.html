@@ -1,106 +1,100 @@
 <!DOCTYPE html>
-<html lang="vi" class="dark">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
     <title>Đăng nhập - NAC Central Authentication Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <script src="{{ url_for('static', filename='js/ui.js') }}" defer></script>
 </head>
-<body class="bg-black text-zinc-100 min-h-screen flex items-center justify-center p-4 selection:bg-white selection:text-black">
-
-    <div class="max-w-md w-full bg-[#111114] rounded-2xl shadow-2xl overflow-hidden border border-zinc-800">
-        <!-- Header: Deep Black with Crisp White Emblem -->
-        <div class="bg-black p-8 text-white text-center border-b border-zinc-800">
-            <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-black shadow-xl ring-2 ring-zinc-700">
-                <i class="fa-solid fa-shield-halved text-3xl"></i>
+<body>
+{% include '_icons.html' %}
+<main class="auth-page">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <span class="auth-mark"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-shield"/></svg></span>
+            <div>
+                <h1 class="brand-name">NAC Control Center</h1>
+                <p class="brand-sub">Hệ thống Quản lý Truy cập Mạng Tập trung</p>
             </div>
-            <h2 class="text-2xl font-black tracking-wider text-white">NAC CONTROL CENTER</h2>
-            <p class="text-xs text-zinc-400 mt-1 uppercase tracking-widest font-mono">Hệ thống Quản lý Truy cập Mạng Tập trung</p>
         </div>
 
-        <!-- Form Container -->
-        <div class="p-8 bg-[#111114]">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold text-center shadow-lg
-                            {% if category == 'danger' %}bg-red-950/80 text-red-200 border border-red-700
-                            {% elif category == 'warning' %}bg-orange-950/80 text-orange-200 border border-orange-700
-                            {% elif category == 'info' %}bg-amber-950/80 text-amber-200 border border-amber-700
-                            {% else %}bg-zinc-900 text-white border border-zinc-700{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+        <h2 class="auth-title" style="font-size:26px;">Đăng nhập</h2>
+        <p class="auth-sub" style="margin-bottom:16px;font-size:14px;">Cổng xác thực tập trung cho tài khoản OpenLDAP và SSO.</p>
 
-            {% if is_ip_blocked %}
-            <div class="mb-5 p-4 rounded-xl bg-red-950/90 border border-red-600 text-center space-y-2 text-white shadow-xl">
-                <i class="fa-solid fa-ban text-2xl text-red-400 animate-pulse"></i>
-                <p class="text-xs font-black uppercase tracking-wider text-red-200">Địa chỉ IP đang bị cách ly / tạm chặn</p>
-                <p class="text-[11px] text-zinc-300">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert {% if category == 'danger' %}alert-danger{% elif category == 'warning' %}alert-warn{% elif category == 'info' %}alert-info{% else %}alert-ok{% endif %}" role="status" style="margin-bottom:12px;">
+                    <svg class="icon" aria-hidden="true">
+                        <use href="{% if category == 'danger' %}#i-x-circle{% elif category == 'warning' %}#i-alert{% elif category == 'info' %}#i-info{% else %}#i-check-circle{% endif %}"/>
+                    </svg>
+                    <span class="alert-body">{{ message }}</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if is_ip_blocked %}
+        <div class="alert alert-danger" style="margin-bottom:14px;" role="alert">
+            <svg class="icon" aria-hidden="true"><use href="#i-ban"/></svg>
+            <div class="alert-body">
+                <p class="alert-title">Địa chỉ IP đang bị cách ly / tạm chặn</p>
+                <p class="alert-sub">
                     Địa chỉ IP của bạn đang bị chặn{% if blocked_target_user %} do liên quan đến <strong>{{ blocked_target_user }}</strong> bị đưa vào diện cách ly{% else %} do vi phạm bảo mật đăng nhập{% endif %}.
                 </p>
-                <div class="inline-block px-3.5 py-1 bg-black/80 rounded-lg border border-red-500/50 text-red-400 font-mono text-xs font-bold">
-                    <i class="fa-regular fa-clock mr-1"></i> Thời gian còn lại: ~{{ lock_minutes }} phút
-                </div>
-                <p class="text-[10px] text-zinc-400 italic">
-                    * Quyền truy cập thông thường bị từ chối. Chỉ Quản trị viên (Admin) mới có thể đăng nhập để cứu hộ và mở khóa.
+                <p class="alert-sub mono" style="margin-top:6px;">
+                    <svg class="icon icon-sm" aria-hidden="true" style="display:inline-block;vertical-align:-2px;"><use href="#i-clock"/></svg>
+                    Thời gian còn lại: ~{{ lock_minutes }} phút
                 </p>
-            </div>
-            {% endif %}
-
-            <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
-                <input type="hidden" name="sid" value="{{ sid }}">
-                <div>
-                    <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider mb-2">Tên đăng nhập (Username)</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
-                            <i class="fa-solid fa-user text-sm"></i>
-                        </span>
-                        <input type="text" name="username" required class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black border {% if is_ip_blocked %}border-red-600 focus:border-red-500 focus:ring-red-500{% else %}border-zinc-700 focus:border-white focus:ring-white{% endif %} focus:outline-none focus:ring-1 text-sm text-white placeholder-zinc-500 transition-all" placeholder="admin, auditor, sv_vinh, gv_nguyen...">
-                    </div>
-                </div>
-
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="block text-xs font-bold text-zinc-300 uppercase tracking-wider">Mật khẩu (Password)</label>
-                        <a href="{{ url_for('forgot_password', sid=sid) }}" class="text-[11px] font-semibold text-amber-400 hover:text-amber-300 hover:underline transition-colors">
-                            Quên mật khẩu?
-                        </a>
-                    </div>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
-                            <i class="fa-solid fa-lock text-sm"></i>
-                        </span>
-                        <input type="password" name="password" required class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black border {% if is_ip_blocked %}border-red-600 focus:border-red-500 focus:ring-red-500{% else %}border-zinc-700 focus:border-white focus:ring-white{% endif %} focus:outline-none focus:ring-1 text-sm text-white placeholder-zinc-500 transition-all" placeholder="••••••••••••">
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full py-3.5 px-4 {% if is_ip_blocked %}bg-red-600 hover:bg-red-500 text-white shadow-red-900/40{% else %}bg-white hover:bg-zinc-200 text-black{% endif %} font-black uppercase tracking-wider text-xs rounded-xl shadow-xl hover:shadow-2xl transition-all duration-200 flex items-center justify-center space-x-2">
-                    <span>{% if is_ip_blocked %}Đăng nhập (IP đang bị chặn / cứu hộ Admin){% else %}Đăng nhập Hệ Thống{% endif %}</span>
-                    <i class="fa-solid fa-arrow-right text-xs"></i>
-                </button>
-            </form>
-
-            <!-- Tự đăng ký tài khoản mới -->
-            <div class="mt-4 pt-3 text-center border-t border-zinc-900">
-                <p class="text-xs text-zinc-400">
-                    Chưa có tài khoản?
-                    <a href="{{ url_for('register', sid=sid) }}" class="font-bold text-blue-400 hover:text-blue-300 hover:underline transition-colors ml-1">
-                        Tự đăng ký ngay <i class="fa-solid fa-arrow-right text-[10px] ml-0.5"></i>
-                    </a>
-                </p>
-            </div>
-
-            <!-- Footer: Security Assurance -->
-            <div class="mt-6 pt-4 border-t border-zinc-900 text-[10px] text-zinc-500 text-center leading-relaxed font-mono">
-                <i class="fa-solid fa-shield-halved text-zinc-400 mr-1"></i>
-                Hệ thống Quản lý Truy cập Mạng Tập trung (NAC) & Cổng Single Sign-On (SSO).
+                <p class="hint" style="margin-top:4px;">* Quyền truy cập thông thường bị từ chối. Chỉ Quản trị viên (Admin) mới có thể đăng nhập để cứu hộ và mở khóa.</p>
             </div>
         </div>
-    </div>
+        {% endif %}
 
+        <form method="POST" action="{{ url_for('login') }}" class="stack">
+            <input type="hidden" name="sid" value="{{ sid }}">
+
+            <div class="field">
+                <label class="label" for="loginUsername">Tên đăng nhập (Username)</label>
+                <div class="input-wrap">
+                    <svg class="input-icon icon" aria-hidden="true"><use href="#i-user"/></svg>
+                    <input type="text" id="loginUsername" name="username" required class="input has-icon" placeholder="admin, auditor, sv_vinh, gv_nguyen...">
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="label">
+                    <label for="loginPassword">Mật khẩu (Password)</label>
+                    <a href="{{ url_for('forgot_password', sid=sid) }}" class="small">Quên mật khẩu?</a>
+                </div>
+                <div class="input-wrap">
+                    <svg class="input-icon icon" aria-hidden="true"><use href="#i-lock"/></svg>
+                    <input type="password" id="loginPassword" name="password" required class="input has-icon has-action" placeholder="••••••••••••">
+                    <button type="button" class="pw-toggle" data-pw-toggle aria-label="Hiện mật khẩu" aria-pressed="false">
+                        <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-lg btn-block {% if is_ip_blocked %}btn-danger{% else %}btn-primary{% endif %}">
+                <span>{% if is_ip_blocked %}Đăng nhập (IP đang bị chặn / cứu hộ Admin){% else %}Đăng nhập Hệ Thống{% endif %}</span>
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+            </button>
+        </form>
+
+        <div class="auth-foot" style="font-size:12.5px;">
+            <p>
+                Chưa có tài khoản?
+                <a href="{{ url_for('register', sid=sid) }}" style="font-weight:600;">Tự đăng ký ngay</a>
+            </p>
+            <p style="margin-top:10px;font-family:var(--mono);font-size:12px;">
+                <svg class="icon icon-sm" aria-hidden="true" style="display:inline-block;vertical-align:-2px;"><use href="#i-shield-check"/></svg>
+                Hệ thống Quản lý Truy cập Mạng Tập trung (NAC) &amp; Cổng Single Sign-On (SSO).
+            </p>
+        </div>
+    </div>
+</main>
 </body>
 </html>

@@ -1,100 +1,100 @@
 <!DOCTYPE html>
-<html lang="vi" class="dark">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
     <title>Xác thực Bước 2 (MFA TOTP) - NAC Central Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <script src="{{ url_for('static', filename='js/ui.js') }}" defer></script>
 </head>
-<body class="bg-black text-zinc-100 min-h-screen flex items-center justify-center p-4 selection:bg-white selection:text-black">
-
-    <div class="max-w-md w-full bg-[#111114] rounded-2xl shadow-2xl overflow-hidden border border-zinc-800">
-        <!-- Header -->
-        <div class="bg-black p-8 text-white text-center border-b border-zinc-800">
-            <div class="w-16 h-16 bg-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-4 text-black shadow-xl ring-2 ring-zinc-700">
-                <i class="fa-solid fa-mobile-screen-button text-3xl"></i>
+<body>
+{% include '_icons.html' %}
+<main class="auth-page">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <span class="auth-mark"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-shield-check"/></svg></span>
+            <div>
+                <h1 class="auth-title">Xác thực đa nhân tố (MFA)</h1>
+                <p class="auth-sub">Bảo vệ Lớp 2: Mã TOTP 6 Chữ Số</p>
             </div>
-            <h2 class="text-xl font-black tracking-wider text-white">XÁC THỰC ĐA NHÂN TỐ (MFA)</h2>
-            <p class="text-xs text-zinc-400 mt-1 uppercase tracking-widest font-mono">Bảo vệ Lớp 2: Mã TOTP 6 Chữ Số</p>
         </div>
 
-        <div class="p-8 bg-[#111114]">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold text-center shadow-lg
-                            {% if category == 'danger' %}bg-red-950/80 text-red-200 border border-red-700
-                            {% elif category == 'warning' %}bg-orange-950/80 text-orange-200 border border-orange-700
-                            {% elif category == 'info' %}bg-amber-950/80 text-amber-200 border border-amber-700
-                            {% else %}bg-zinc-900 text-white border border-zinc-700{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <div class="text-center mb-6">
-                <p class="text-xs text-zinc-400">Đang xác thực tài khoản:</p>
-                <p class="text-base font-extrabold text-white font-mono mt-0.5">{{ username }}</p>
-                {% if not (lock_info and lock_info.is_locked) %}
-                <p class="text-[11px] text-zinc-400 mt-2">
-                    Vui lòng mở ứng dụng <strong>Google Authenticator</strong> hoặc <strong>Microsoft Authenticator</strong> và nhập mã 6 số hiện thời:
-                </p>
-                {% endif %}
-            </div>
-
-            {% if lock_info and lock_info.is_locked %}
-            <div class="mb-6 p-4 rounded-xl bg-red-950/90 border border-red-600 text-center space-y-2.5 shadow-xl">
-                <div class="w-12 h-12 rounded-full bg-red-900/60 text-red-400 flex items-center justify-center mx-auto text-xl border border-red-500 animate-pulse">
-                    <i class="fa-solid fa-lock"></i>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert {% if category == 'danger' %}alert-danger{% elif category == 'warning' %}alert-warn{% elif category == 'info' %}alert-info{% else %}alert-ok{% endif %}" role="status" style="margin-bottom:12px;">
+                    <svg class="icon" aria-hidden="true">
+                        <use href="{% if category == 'danger' %}#i-x-circle{% elif category == 'warning' %}#i-alert{% elif category == 'info' %}#i-info{% else %}#i-check-circle{% endif %}"/>
+                    </svg>
+                    <span class="alert-body">{{ message }}</span>
                 </div>
-                <h4 class="text-xs font-black uppercase tracking-wider text-red-200">Tài khoản bị tạm khóa xác thực</h4>
-                <p class="text-[11px] text-zinc-300">
-                    Đã nhập sai mã OTP quá 3 lần liên tiếp. Chức năng xác thực bị khóa an toàn trong <strong>10 phút</strong> để chống tấn công dò mã.
-                </p>
-                <div class="inline-block px-3.5 py-1.5 bg-black/80 rounded-lg border border-red-500/50 text-red-400 font-mono text-xs font-bold">
-                    <i class="fa-regular fa-clock mr-1.5"></i> Thời gian còn lại: ~{{ lock_info.minutes_left }} phút
-                </div>
-            </div>
-            <div class="text-center">
-                <a href="{{ url_for('login') }}" class="inline-flex items-center space-x-2 py-3 px-6 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs rounded-xl border border-zinc-600 transition-all">
-                    <i class="fa-solid fa-arrow-left"></i>
-                    <span>Quay lại trang Đăng nhập</span>
-                </a>
-            </div>
-            {% else %}
-                {% if lock_info and lock_info.failed_attempts and lock_info.failed_attempts > 0 %}
-                <div class="mb-4 text-center">
-                    <span class="inline-flex items-center text-[11px] font-bold text-amber-300 bg-amber-950/60 px-3 py-1 rounded-lg border border-amber-600/60">
-                        <i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-400"></i> Đã thử sai {{ lock_info.failed_attempts }}/3 lần (Quá 3 lần sẽ khóa 10 phút)
-                    </span>
-                </div>
-                {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-            <form method="POST" action="{{ url_for('mfa_verify') }}" class="space-y-5">
-                <input type="hidden" name="sid" value="{{ sid }}">
-
-                <div>
-                    <input type="text" name="code" required maxlength="6" pattern="[0-9]{6}" autofocus placeholder="••••••"
-                        class="w-full text-center text-3xl font-mono font-black tracking-[0.5em] py-3.5 bg-black border border-zinc-700 rounded-xl text-amber-300 focus:border-white focus:outline-none transition-all">
-                </div>
-
-                <button type="submit"
-                    class="w-full py-3.5 px-4 bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-wider text-xs rounded-xl shadow-xl transition-all duration-200 flex items-center justify-center space-x-2">
-                    <span>Xác nhận & Hoàn tất Đăng nhập</span>
-                    <i class="fa-solid fa-arrow-right text-xs"></i>
-                </button>
-            </form>
-
-            <div class="mt-6 pt-5 border-t border-zinc-800 text-center">
-                <a href="{{ url_for('login') }}" class="text-xs text-zinc-400 hover:text-white transition-colors">
-                    &larr; Hủy & Quay lại Đăng nhập
-                </a>
-            </div>
+        <div style="text-align:center;margin-bottom:14px;">
+            <p class="muted small">Đang xác thực tài khoản:</p>
+            <p class="mono" style="font-size:15px;font-weight:600;">{{ username }}</p>
+            {% if not (lock_info and lock_info.is_locked) %}
+            <p class="muted small" style="margin-top:8px;">
+                Vui lòng mở ứng dụng <strong>Google Authenticator</strong> hoặc <strong>Microsoft Authenticator</strong> và nhập mã 6 số hiện thời:
+            </p>
             {% endif %}
         </div>
-    </div>
 
+        {% if lock_info and lock_info.is_locked %}
+        <div class="alert alert-danger" role="alert">
+            <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>
+            <div class="alert-body">
+                <p class="alert-title">Tài khoản bị tạm khóa xác thực</p>
+                <p class="alert-sub">
+                    Đã nhập sai mã OTP quá 3 lần liên tiếp. Chức năng xác thực bị khóa an toàn trong <strong>10 phút</strong> để chống tấn công dò mã.
+                </p>
+                <p class="alert-sub mono" style="margin-top:6px;">
+                    <svg class="icon icon-sm" aria-hidden="true" style="display:inline-block;vertical-align:-2px;"><use href="#i-clock"/></svg>
+                    Thời gian còn lại: ~{{ lock_info.minutes_left }} phút
+                </p>
+            </div>
+        </div>
+        <div style="text-align:center;margin-top:14px;">
+            <a href="{{ url_for('login') }}" class="btn">
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+                <span>Quay lại trang Đăng nhập</span>
+            </a>
+        </div>
+        {% else %}
+            {% if lock_info and lock_info.failed_attempts and lock_info.failed_attempts > 0 %}
+            <div style="text-align:center;margin-bottom:10px;">
+                <span class="badge badge-warn">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-alert"/></svg>
+                    Đã thử sai {{ lock_info.failed_attempts }}/3 lần (Quá 3 lần sẽ khóa 10 phút)
+                </span>
+            </div>
+            {% endif %}
+
+        <form method="POST" action="{{ url_for('mfa_verify') }}" class="stack">
+            <input type="hidden" name="sid" value="{{ sid }}">
+
+            <div class="field">
+                <label class="sr-only" for="mfaCode">Mã xác thực TOTP 6 chữ số</label>
+                <input type="text" id="mfaCode" name="code" required maxlength="6" pattern="[0-9]{6}" autofocus placeholder="••••••" class="input code-input mono">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-block">
+                <span>Xác nhận &amp; Hoàn tất Đăng nhập</span>
+                <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+            </button>
+        </form>
+
+        <div class="auth-foot">
+            <a href="{{ url_for('login') }}" class="row" style="justify-content:center;gap:5px;">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+                <span>Hủy &amp; Quay lại Đăng nhập</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</main>
 </body>
 </html>

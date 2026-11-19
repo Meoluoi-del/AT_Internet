@@ -2,58 +2,54 @@
 {% block title %}Phiên Truy cập Trực tuyến (Accounting){% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-
-    <!-- HEADER -->
-    <div class="flex items-center justify-between pb-2 border-b border-zinc-900">
-        <div>
-            <h2 class="text-2xl font-black text-white tracking-wider">PHIÊN TRUY CẬP ĐANG HOẠT ĐỘNG (RADACCT)</h2>
-            <p class="text-xs text-zinc-400 mt-1 font-mono">Giám sát các phiên làm việc mạng chưa ngắt kết nối theo giao thức RADIUS Accounting (RFC 2866)</p>
-        </div>
+<div class="page-head">
+    <div>
+        <h2 class="page-title">Phiên Truy cập Đang hoạt động (RADACCT)</h2>
+        <p class="page-sub">Giám sát các phiên làm việc mạng chưa ngắt kết nối theo giao thức RADIUS Accounting (RFC 2866)</p>
     </div>
-
-    <!-- SESSIONS TABLE (ĐEN & TRẮNG CHỦ ĐẠO) -->
-    <div class="bg-[#121215] rounded-2xl border border-zinc-800 shadow-xl overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-black text-zinc-400 uppercase font-bold border-b border-zinc-800 text-[10px] tracking-wider">
-                    <tr>
-                        <th class="px-6 py-3.5">Session ID</th>
-                        <th class="px-6 py-3.5">Tài khoản</th>
-                        <th class="px-6 py-3.5">IP Thiết bị (NAS)</th>
-                        <th class="px-6 py-3.5">IP Cấp phát</th>
-                        <th class="px-6 py-3.5">Thời điểm bắt đầu</th>
-                        <th class="px-6 py-3.5">Thời lượng (s)</th>
-                        <th class="px-6 py-3.5">Lưu lượng (In/Out)</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-800/80 text-zinc-300 bg-[#121215]">
-                    {% if sessions %}
-                        {% for s in sessions %}
-                        <tr class="hover:bg-zinc-900/50 transition-colors">
-                            <td class="px-6 py-3.5 font-mono text-zinc-400 text-[11px]">{{ s.acctsessionid }}</td>
-                            <td class="px-6 py-3.5 font-bold font-mono text-white">{{ s.username }}</td>
-                            <td class="px-6 py-3.5 font-mono text-zinc-400">{{ s.nasipaddress }}</td>
-                            <td class="px-6 py-3.5 font-mono text-white font-bold">{{ s.framedipaddress or '-' }}</td>
-                            <td class="px-6 py-3.5 font-mono text-[11px] text-zinc-400">{{ s.acctstarttime }}</td>
-                            <td class="px-6 py-3.5 font-mono text-white font-bold">{{ s.acctsessiontime or '0' }}s</td>
-                            <td class="px-6 py-3.5 font-mono text-[11px] text-zinc-400">
-                                {{ (s.acctinputoctets/1024)|round(1) }} KB / {{ (s.acctoutputoctets/1024)|round(1) }} KB
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-zinc-500">
-                                <i class="fa-solid fa-signal text-3xl mb-2 block"></i>
-                                Hiện không có phiên kết nối trực tuyến nào được báo cáo bởi NAS.
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
 </div>
+
+<section class="card">
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Session ID</th>
+                    <th>Tài khoản</th>
+                    <th>IP Thiết bị (NAS)</th>
+                    <th>IP Cấp phát</th>
+                    <th>Thời điểm bắt đầu</th>
+                    <th class="text-right">Thời lượng (s)</th>
+                    <th class="text-right">Lưu lượng (In/Out)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if sessions %}
+                    {% for s in sessions %}
+                    <tr>
+                        <td class="mono muted">{{ s.acctsessionid }}</td>
+                        <td class="mono"><strong>{{ s.username }}</strong></td>
+                        <td class="mono muted">{{ s.nasipaddress }}</td>
+                        <td class="mono">{{ s.framedipaddress or '-' }}</td>
+                        <td class="mono muted">{{ s.acctstarttime }}</td>
+                        <td class="mono text-right">{{ s.acctsessiontime or '0' }}s</td>
+                        <td class="mono muted text-right">
+                            {{ (s.acctinputoctets/1024)|round(1) }} KB / {{ (s.acctoutputoctets/1024)|round(1) }} KB
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <svg class="icon icon-lg" aria-hidden="true"><use href="#i-activity"/></svg>
+                                <p>Hiện không có phiên kết nối trực tuyến nào được báo cáo bởi NAS.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}

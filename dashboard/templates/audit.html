@@ -2,135 +2,117 @@
 {% block title %}Nhật ký Kiểm toán Thao tác Quản trị (Audit Log){% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-
-    <!-- HEADER -->
-    <div class="flex items-center justify-between pb-2 border-b border-zinc-900">
-        <div>
-            <h2 class="text-2xl font-black text-white tracking-wider">NHẬT KÝ KIỂM TOÁN QUẢN TRỊ (AUDIT LOGS)</h2>
-            <p class="text-xs text-zinc-400 mt-1 font-mono">Cơ chế bảo vệ tính toàn vẹn (Integrity) và chống chối bỏ (Non-repudiation) với chuỗi mật mã SHA-256 Hash-Chain</p>
-        </div>
-        <div class="flex items-center space-x-2">
-            <span class="text-xs px-3 py-1.5 bg-zinc-900 text-zinc-300 rounded-xl font-mono font-bold border border-zinc-700 flex items-center space-x-1.5">
-                <i class="fa-solid fa-link text-[10px] text-emerald-400"></i>
-                <span>Hash-Chain Chống Chối Bỏ</span>
-            </span>
-            <span class="text-xs px-3 py-1.5 bg-zinc-900 text-zinc-300 rounded-xl font-mono font-bold border border-zinc-700 flex items-center space-x-1.5">
-                <i class="fa-solid fa-lock text-[10px] text-white"></i>
-                <span>Bảng chỉ ghi (Append-Only)</span>
-            </span>
-        </div>
+<div class="page-head">
+    <div>
+        <h2 class="page-title">Nhật ký Kiểm toán Quản trị (Audit Logs)</h2>
+        <p class="page-sub">Cơ chế bảo vệ tính toàn vẹn (Integrity) và chống chối bỏ (Non-repudiation) với chuỗi mật mã SHA-256 Hash-Chain</p>
     </div>
-
-    <!-- BANNER XÁC MINH TÍNH TOÀN VẸN CHUỖI HASH-CHAIN -->
-    {% if audit_integrity %}
-        {% if audit_integrity.is_valid %}
-        <div class="p-3.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs">
-            <div class="flex items-center space-x-2.5 text-emerald-400">
-                <i class="fa-solid fa-shield-halved text-sm"></i>
-                <span class="font-mono font-bold">XÁC THỰC MẬT MÃ TOÀN VẸN (SHA-256 HASH-CHAIN):</span>
-                <span class="text-emerald-300 font-mono">{{ audit_integrity.message }}</span>
-            </div>
-            <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded font-mono text-[10px] font-bold border border-emerald-500/40 uppercase">
-                <i class="fa-solid fa-circle-check mr-1"></i>CHUỖI NGUYÊN VẸN (VERIFIED)
-            </span>
-        </div>
-        {% else %}
-        <div class="p-3.5 bg-red-950/40 border border-red-500/60 rounded-xl flex items-center justify-between text-xs">
-            <div class="flex items-center space-x-2.5 text-red-400">
-                <i class="fa-solid fa-triangle-exclamation text-sm animate-bounce"></i>
-                <span class="font-mono font-bold">CẢNH BÁO XÂM PHẠM TOÀN VẸN (TAMPER DETECTED):</span>
-                <span class="text-red-300 font-mono">{{ audit_integrity.message }}</span>
-            </div>
-            <span class="px-2.5 py-1 bg-red-500/30 text-red-200 rounded font-mono text-[10px] font-bold border border-red-500/60 uppercase">
-                <i class="fa-solid fa-circle-xmark mr-1"></i>PHÁT HIỆN SỬA ĐỔI
-            </span>
-        </div>
-        {% endif %}
-    {% endif %}
-
-    <!-- AUDIT TABLE (ĐEN & TRẮNG CHỦ ĐẠO + ĐIỂM NHẤN ĐỎ / CAM / VÀNG THEO MỨC ĐỘ THAO TÁC) -->
-    <div class="bg-[#121215] rounded-2xl border border-zinc-800 shadow-xl overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-black text-zinc-400 uppercase font-bold border-b border-zinc-800 text-[10px] tracking-wider">
-                    <tr>
-                        <th class="px-6 py-3.5">ID</th>
-                        <th class="px-6 py-3.5">Thời điểm (Timestamp)</th>
-                        <th class="px-6 py-3.5">Người thực hiện (Actor)</th>
-                        <th class="px-6 py-3.5">Hành động (Action)</th>
-                        <th class="px-6 py-3.5">Đối tượng (Target)</th>
-                        <th class="px-6 py-3.5">Chi tiết thay đổi</th>
-                        <th class="px-6 py-3.5">IP Nguồn</th>
-                        <th class="px-6 py-3.5">Hash SHA-256</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-800/80 text-zinc-300 bg-[#121215]">
-                    {% if audit_logs %}
-                        {% for a in audit_logs %}
-                        <tr class="hover:bg-zinc-900/50 transition-colors">
-                            <td class="px-6 py-3.5 font-mono text-zinc-500 text-[11px]">{{ a.id }}</td>
-                            <td class="px-6 py-3.5 font-mono text-zinc-400 text-[11px]">{{ a.created_at }}</td>
-                            <td class="px-6 py-3.5 font-bold font-mono">
-                                {% if a.actor_username == 'SYSTEM_ACTIVE_DEFENSE' %}
-                                    <!-- Actor hệ thống phòng thủ: MỨC ĐỎ -->
-                                    <span class="text-red-400 animate-pulse flex items-center space-x-1">
-                                        <i class="fa-solid fa-shield-virus text-[10px]"></i>
-                                        <span>{{ a.actor_username }}</span>
-                                    </span>
-                                {% elif a.actor_username == 'admin' %}
-                                    <!-- Admin: MỨC CAM (Đặc quyền cao) -->
-                                    <span class="text-orange-400 flex items-center space-x-1">
-                                        <i class="fa-solid fa-crown text-[10px]"></i>
-                                        <span>{{ a.actor_username }}</span>
-                                    </span>
-                                {% else %}
-                                    <span class="text-white">{{ a.actor_username }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-3.5">
-                                <!-- Hành động phân cấp mức độ cảnh báo: Đỏ, Cam, Vàng, Trắng -->
-                                <span class="px-2.5 py-1 rounded text-[10px] font-extrabold uppercase font-mono
-                                    {% if 'QUARANTINE' in a.action %}bg-red-500/20 text-red-400 border border-red-500/50
-                                    {% elif 'DELETE' in a.action %}bg-red-950 text-red-300 border border-red-700
-                                    {% elif 'POLICY' in a.action %}bg-orange-500/20 text-orange-400 border border-orange-500/40
-                                    {% elif 'UNLOCK' in a.action %}bg-amber-500/20 text-amber-300 border border-amber-500/40
-                                    {% else %}bg-zinc-800 text-zinc-200 border border-zinc-700{% endif %}">
-                                    {{ a.action }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-3.5 font-mono font-bold text-white text-[11px]">{{ a.target }}</td>
-                            <td class="px-6 py-3.5 text-zinc-300 text-[11px] font-mono">
-                                {% if a.old_value %}
-                                    <span class="text-red-400 line-through mr-1">{{ a.old_value }}</span> &rarr;
-                                {% endif %}
-                                <span class="text-white font-bold">{{ a.new_value }}</span>
-                            </td>
-                            <td class="px-6 py-3.5 font-mono text-zinc-500 text-[11px]">{{ a.ip_address }}</td>
-                            <td class="px-6 py-3.5 font-mono text-[10px] text-zinc-400" title="Prev: {{ a.prev_hash }}&#10;Current: {{ a.record_hash }}">
-                                {% if a.record_hash and a.record_hash != '0'*64 %}
-                                    <span class="px-1.5 py-0.5 bg-zinc-800 rounded text-emerald-400 border border-zinc-700 flex items-center space-x-1 w-fit cursor-help">
-                                        <i class="fa-solid fa-fingerprint text-[9px]"></i>
-                                        <span>{{ a.record_hash[:10] }}...</span>
-                                    </span>
-                                {% else %}
-                                    <span class="text-zinc-600">-</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="8" class="px-6 py-12 text-center text-zinc-500">
-                                <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>
-                                Chưa có nhật ký audit nào được ghi nhận.
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
+    <div class="page-actions">
+        <span class="badge badge-ok">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-link"/></svg>
+            Hash-Chain Chống Chối Bỏ
+        </span>
+        <span class="badge">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"/></svg>
+            Bảng chỉ ghi (Append-Only)
+        </span>
     </div>
-
 </div>
+
+{% if audit_integrity %}
+    {% if audit_integrity.is_valid %}
+    <div class="alert alert-ok" style="margin-bottom:12px;" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg>
+        <div class="alert-body">
+            <p class="alert-title">Xác thực mật mã toàn vẹn (SHA-256 Hash-Chain):</p>
+            <p class="alert-sub mono">{{ audit_integrity.message }}</p>
+        </div>
+        <span class="badge badge-ok">Chuỗi nguyên vẹn (Verified)</span>
+    </div>
+    {% else %}
+    <div class="alert alert-danger" style="margin-bottom:12px;" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+        <div class="alert-body">
+            <p class="alert-title">Cảnh báo xâm phạm toàn vẹn (Tamper Detected):</p>
+            <p class="alert-sub mono">{{ audit_integrity.message }}</p>
+        </div>
+        <span class="badge badge-danger">Phát hiện sửa đổi</span>
+    </div>
+    {% endif %}
+{% endif %}
+
+<section class="card">
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="text-right">ID</th>
+                    <th>Thời điểm (Timestamp)</th>
+                    <th>Người thực hiện (Actor)</th>
+                    <th>Hành động (Action)</th>
+                    <th>Đối tượng (Target)</th>
+                    <th>Chi tiết thay đổi</th>
+                    <th>IP Nguồn</th>
+                    <th>Hash SHA-256</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if audit_logs %}
+                    {% for a in audit_logs %}
+                    <tr>
+                        <td class="mono muted text-right">{{ a.id }}</td>
+                        <td class="mono muted">{{ a.created_at }}</td>
+                        <td class="mono">
+                            {% if a.actor_username == 'SYSTEM_ACTIVE_DEFENSE' %}
+                            <span class="status status-danger">{{ a.actor_username }}</span>
+                            {% elif a.actor_username == 'admin' %}
+                            <span class="row" style="gap:5px;">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-crown"/></svg>
+                                <span>{{ a.actor_username }}</span>
+                            </span>
+                            {% else %}
+                            <span>{{ a.actor_username }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if 'QUARANTINE' in a.action or 'DELETE' in a.action %}
+                            <span class="badge badge-danger">{{ a.action }}</span>
+                            {% else %}
+                            <span class="badge">{{ a.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono"><strong>{{ a.target }}</strong></td>
+                        <td class="mono" style="font-size:12px;">
+                            {% if a.old_value %}
+                            <span class="muted" style="text-decoration:line-through;">{{ a.old_value }}</span> &rarr;
+                            {% endif %}
+                            <strong>{{ a.new_value }}</strong>
+                        </td>
+                        <td class="mono muted">{{ a.ip_address }}</td>
+                        <td class="mono muted" style="font-size:12px;" title="Prev: {{ a.prev_hash }}&#10;Current: {{ a.record_hash }}">
+                            {% if a.record_hash and a.record_hash != '0'*64 %}
+                            <span class="badge badge-ok" style="cursor:help;">
+                                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-fingerprint"/></svg>
+                                {{ a.record_hash[:10] }}...
+                            </span>
+                            {% else %}
+                            <span class="muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8">
+                            <div class="empty-state">
+                                <svg class="icon icon-lg" aria-hidden="true"><use href="#i-inbox"/></svg>
+                                <p>Chưa có nhật ký audit nào được ghi nhận.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}
